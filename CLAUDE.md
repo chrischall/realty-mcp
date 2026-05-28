@@ -17,7 +17,7 @@ Current line: **0.1.x** — `@chrischall/realty-core` only.
 
 | Package | What it does |
 |---|---|
-| `@chrischall/realty-core` | Pure, dependency-free helpers: address tokenisation + match scoring, USPS street-suffix variant expansion, locality-alias remap (Lake Lure ↔ Rutherfordton, Beech / Sugar Mountain ↔ Banner Elk), free-text address parsing, shared resolver types. Every export has a vitest. |
+| `@chrischall/realty-core` | Pure, dependency-free helpers: address tokenisation + match scoring, USPS street-suffix variant expansion, locality-alias remap (Lake Lure ↔ Rutherfordton, Beech / Sugar Mountain ↔ Banner Elk), free-text address parsing, shared resolver types, `calculateAffordability` (DTI-inverse-PMT). Every export has a vitest. |
 
 ## Commands
 

@@ -14,6 +14,12 @@ export type { LocalityKey, LocalityLookup } from './locality-alias.js';
 export { parseAddress } from './parse-address.js';
 export type { ParsedAddress } from './parse-address.js';
 
+export { calculateAffordability } from './affordability.js';
+export type {
+  AffordabilityInput,
+  AffordabilityResult,
+} from './affordability.js';
+
 export type {
   ResolverVia,
   ResolvedAddress,
