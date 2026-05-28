@@ -125,6 +125,9 @@ export function calculateMortgage(input: MortgageInput): MortgageBreakdown {
       : input.down_payment_percent !== undefined
         ? (input.home_price * input.down_payment_percent) / 100
         : input.home_price * 0.2;
+  if (down < 0) {
+    throw new Error('down_payment must be non-negative');
+  }
   const loan = Math.max(0, input.home_price - down);
 
   const monthly_rate = input.interest_rate / 100 / 12;
@@ -159,18 +162,23 @@ export function calculateMortgage(input: MortgageInput): MortgageBreakdown {
   const total_interest = monthly_pi * n_months - loan;
   const total_paid = monthly_pi * n_months;
 
+  // Round each cell, then sum the rounded values for the total so
+  // callers reconstructing the total from cells get exact equality.
+  const r_pi = round2(monthly_pi);
+  const r_tax = round2(monthly_tax);
+  const r_ins = round2(monthly_ins);
+  const r_hoa = round2(monthly_hoa);
+  const r_pmi = round2(monthly_pmi);
   return {
     home_price: input.home_price,
     down_payment: round2(down),
     loan_amount: round2(loan),
-    monthly_principal_interest: round2(monthly_pi),
-    monthly_property_tax: round2(monthly_tax),
-    monthly_insurance: round2(monthly_ins),
-    monthly_hoa: round2(monthly_hoa),
-    monthly_pmi: round2(monthly_pmi),
-    monthly_total: round2(
-      monthly_pi + monthly_tax + monthly_ins + monthly_hoa + monthly_pmi
-    ),
+    monthly_principal_interest: r_pi,
+    monthly_property_tax: r_tax,
+    monthly_insurance: r_ins,
+    monthly_hoa: r_hoa,
+    monthly_pmi: r_pmi,
+    monthly_total: round2(r_pi + r_tax + r_ins + r_hoa + r_pmi),
     total_interest_paid: round2(total_interest),
     total_paid_over_loan: round2(total_paid),
     loan_term_years: term_years,

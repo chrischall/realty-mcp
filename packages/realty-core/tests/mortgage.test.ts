@@ -166,4 +166,41 @@ describe('calculateMortgage', () => {
       })
     ).toThrow(/loan_term_years/);
   });
+
+  it('throws on negative down_payment', () => {
+    // Without this guard, a negative down_payment silently produces
+    // loan > home_price and ltv > 100% — review nit on PR #3.
+    expect(() =>
+      calculateMortgage({
+        home_price: 400_000,
+        interest_rate: 6.5,
+        down_payment: -1,
+      })
+    ).toThrow(/down_payment/);
+  });
+
+  it('monthly_total equals the sum of the returned monthly_* fields', () => {
+    // Internal-consistency contract: callers that reconstruct the
+    // total from the returned cells must get exactly `monthly_total`.
+    // Pre-fix this drifted by ~$0.01-$0.02 because monthly_total
+    // summed raw values while each cell rounded separately. Inputs
+    // chosen so each of tax/insurance/HOA lands on a .X55 residue
+    // (annual 1.86 / 12 = 0.155) — 3 × 0.005 round-ups make the raw
+    // sum (0.465 → 0.47) diverge from the rounded sum (0.48).
+    const r = calculateMortgage({
+      home_price: 100,
+      down_payment: 100, // zero loan so P&I stays 0 and noise comes only from the escrow cells
+      interest_rate: 6.5,
+      property_tax_annual: 1.86,
+      insurance_annual: 1.86,
+      hoa_monthly: 0.155,
+    });
+    const sum =
+      r.monthly_principal_interest +
+      r.monthly_property_tax +
+      r.monthly_insurance +
+      r.monthly_hoa +
+      r.monthly_pmi;
+    expect(r.monthly_total).toBe(Math.round(sum * 100) / 100);
+  });
 });
