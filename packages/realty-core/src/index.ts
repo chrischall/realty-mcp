@@ -44,3 +44,14 @@ export { hoaToMonthlyUsd } from './hoa.js';
 export { daysSince } from './days-since.js';
 export { priceDrop } from './price-drop.js';
 export type { PriceDrop } from './price-drop.js';
+
+// --- derived address + event helpers (cohort candidates D, E, P) ---
+export {
+  normalizeAddressForCompare,
+  collectAddressAlternates,
+} from './address-alternates.js';
+
+export { mapEventType } from './event-type.js';
+export type { NormalizedEventType } from './event-type.js';
+
+export { lastSold } from './last-sold.js';

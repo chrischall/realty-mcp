@@ -97,6 +97,33 @@ Reconciled and shipped:
   (the env-var-driven JSON file read) stays per-consumer — it does
   filesystem I/O, so hoisting it would add a `node:fs` dep and break
   the no-I/O invariant. It just produces the `communities` argument.
+- `normalizeAddressForCompare` + `collectAddressAlternates` (candidate
+  **D**) — strict normalize-then-dedup pair surfacing cross-MLS address
+  variants as `address_alternates`. Reconciled from the byte-identical
+  redfin / zillow / onehome copies (compass's `normalizeAddressForMatch`
+  is the same normalisation under another name). The cohort copies
+  differed only in how they gathered candidates from raw fields, so the
+  canonical form takes the candidate list as an argument; each portal
+  becomes a thin gather-then-call wrapper. Kept DISTINCT from the fuzzy
+  `tokenize` / `addressMatch` scorers.
+- `NormalizedEventType` + `mapEventType` (candidate **E**) — the shared
+  price-history event taxonomy + case-insensitive substring mapper.
+  Canonical type is the UNION of all four cohort synonym sets (zillow,
+  redfin, compass's richest coming-soon/active/off-market/expired set,
+  homes) plus the `Unknown` sentinel (redfin) so unrecognised input
+  never silently mis-buckets as `Listed`. Specificity-ordered matching
+  (Relisted before Listed, Pending/Contingent before Sold).
+- `lastSold` (candidate **P**) — most-recent `Sold` event from a
+  price-history series. Reconciled from zillow's `findLastSold`
+  (`event`/`date`/`time`) and redfin's `lastSold`
+  (`eventDescription`/`eventDate`). **Leverages E:** sold events are
+  identified by `mapEventType(get.type(e)) === 'Sold'` (so "Sold (Public
+  Records)" / "Closed" all count). Generic over the event shape via
+  small `{ date, price, type }` accessors instead of hard-coupling to
+  one portal — so **it ships now over raw events without needing the
+  separate `PriceHistoryEvent` shape** (candidate #3). The returned
+  `date` is echoed in the accessor's own form (epoch number or ISO
+  string); returns `null` when no sold event has a usable date.
 
 ## Phase-2 candidates (next minor: 0.2.x)
 
@@ -334,7 +361,9 @@ canonical `priceDrop(prev, curr): { amount, percent } | null` in
 (candidate #1) — `price_drop_*` fields can't be declared on a shared
 interface while the math is scattered.
 
-### D. `collectAddressAlternates` + `normalizeAddressForCompare` — **HIGH** reuse, **phase-2** (blocker for BaseProperty)
+### D. `collectAddressAlternates` + `normalizeAddressForCompare` — ✅ **SHIPPED** (`realty-core` 0.2.x)
+
+Shipped — see the "Already in `realty-core` 0.2.x" list above.
 
 Three MCPs define this pair nearly identically, with a fourth under a different name:
 
@@ -346,7 +375,9 @@ Three MCPs define this pair nearly identically, with a fourth under a different 
 `address_alternates` is one of the 14 shared `BaseProperty` fields,
 so the math needs to ship in `realty-core` alongside the shape work.
 
-### E. `NormalizedEventType` enum + `mapEventType` — **HIGH** reuse, **phase-2** (alongside PriceHistoryEvent)
+### E. `NormalizedEventType` enum + `mapEventType` — ✅ **SHIPPED** (`realty-core` 0.2.x)
+
+Shipped — see the "Already in `realty-core` 0.2.x" list above.
 
 Four MCPs independently define the same 8-member union + a
 string-to-enum mapper:
@@ -409,10 +440,11 @@ gated on the shape-alignment decision.
 | A | `hoaToMonthlyUsd` | 4-5 of 5 | HIGH | ✅ shipped 0.2.x |
 | B | `daysSince` | 3 of 5 + 1 variant | HIGH | ✅ shipped 0.2.x |
 | C | `priceDrop` | 5 of 5 | HIGH | ✅ shipped 0.2.x (was blocker for BaseProperty) |
-| D | `collectAddressAlternates` | 3 of 5 + 1 variant | HIGH | phase-2 (blocker for BaseProperty) |
-| E | `NormalizedEventType` + `mapEventType` | 4 of 5 | HIGH | phase-2 (alongside PriceHistoryEvent) |
+| D | `collectAddressAlternates` | 3 of 5 + 1 variant | HIGH | ✅ shipped 0.2.x |
+| E | `NormalizedEventType` + `mapEventType` | 4 of 5 | HIGH | ✅ shipped 0.2.x |
 | F | `urlToPath` | 4 of 5 | MEDIUM | phase-3 |
 | G | `locationToSlug` | 2 of 5 | MEDIUM | phase-3 |
 | H | `zipPlausibleStates` | 1 today, applicable to 5 | MEDIUM | phase-3 |
 | I | `estimateRentVsBuy` | 2 of 5 | MEDIUM | phase-3 |
 | J | `extractFeatures` + `ExtractedFeatures` | 5 of 5 (byte-identical) | HIGH | **shipped 0.x** (`loadCommunities` stays per-consumer — fs I/O) |
+| P | `lastSold` (leverages E) | 2 of 5 | HIGH | ✅ shipped 0.2.x (no PriceHistoryEvent needed) |
