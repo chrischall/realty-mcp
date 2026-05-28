@@ -23,6 +23,8 @@ export type {
 export { calculateMortgage } from './mortgage.js';
 export type { MortgageInput, MortgageBreakdown } from './mortgage.js';
 
+export { sqftToAcres, SQFT_PER_ACRE } from './sqft-acres.js';
+
 export type {
   ResolverVia,
   ResolvedAddress,
