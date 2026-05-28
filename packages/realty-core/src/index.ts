@@ -29,6 +29,9 @@ export { cleanTaxAnnual, TAX_SENTINEL_THRESHOLD } from './tax.js';
 
 export { buildHyperlinkFormula } from './hyperlink.js';
 
+export { extractFeatures } from './features.js';
+export type { ExtractedFeatures } from './features.js';
+
 export type {
   ResolverVia,
   ResolvedAddress,
