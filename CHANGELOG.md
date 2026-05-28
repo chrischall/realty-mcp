@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/chrischall/realty-mcp/compare/v0.2.0...v0.3.0) (2026-05-28)
+
+
+### Features
+
+* **core:** add address-alternates + event-type + lastSold (cohort candidates D, E, P) ([#12](https://github.com/chrischall/realty-mcp/issues/12)) ([22d1f74](https://github.com/chrischall/realty-mcp/commit/22d1f74f5c217f960958876a24c9c4b6aaaf452b))
+* **core:** add cleanTaxAnnual + buildHyperlinkFormula (cohort candidates K, L) ([#10](https://github.com/chrischall/realty-mcp/issues/10)) ([a75fea5](https://github.com/chrischall/realty-mcp/commit/a75fea52c2ffa18974a52e2787ac9c840e8f08f0))
+* **core:** add estimateRentVsBuy — unified rent-vs-buy projection (cohort candidate I) ([#15](https://github.com/chrischall/realty-mcp/issues/15)) ([682bfd9](https://github.com/chrischall/realty-mcp/commit/682bfd95479de74e64948da495474c7b5dbcf758))
+* **core:** add extractFeatures + ExtractedFeatures (cohort candidate J) ([#9](https://github.com/chrischall/realty-mcp/issues/9)) ([aa6dc80](https://github.com/chrischall/realty-mcp/commit/aa6dc8004357c7983891c5607bc4e11057604f04))
+* **core:** add hoaToMonthlyUsd + daysSince + priceDrop (cohort candidates A, B, C) ([#13](https://github.com/chrischall/realty-mcp/issues/13)) ([f7151ac](https://github.com/chrischall/realty-mcp/commit/f7151ac8c8c9363d9a01f4d9ecbcd1b3d154453f))
+* **core:** add sqftToAcres lot-size unit conversion ([#7](https://github.com/chrischall/realty-mcp/issues/7)) ([818b16a](https://github.com/chrischall/realty-mcp/commit/818b16ad182bff93df265223551899dde89d0208))
+* **core:** add urlToPath + locationToSlug + zip-geo helpers (cohort candidates F, G, H) ([#14](https://github.com/chrischall/realty-mcp/issues/14)) ([e70ece4](https://github.com/chrischall/realty-mcp/commit/e70ece4d3874b54cccb600e2253405a67a8519db))
+
 ## [0.2.0](https://github.com/chrischall/realty-mcp/compare/v0.1.0...v0.2.0) (2026-05-28)
 
 
