@@ -72,4 +72,13 @@ describe('cleanTaxAnnual', () => {
       tax_status: null,
     });
   });
+
+  it('treats a negative value as a sentinel (not a real assessed amount)', () => {
+    // < the sentinel threshold, so it lands on not-yet-assessed — a
+    // negative tax figure is never a real assessed amount.
+    expect(cleanTaxAnnual(-5)).toEqual({
+      tax_annual: null,
+      tax_status: 'not_yet_assessed',
+    });
+  });
 });

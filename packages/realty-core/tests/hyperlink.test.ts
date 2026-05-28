@@ -45,4 +45,12 @@ describe('buildHyperlinkFormula', () => {
       buildHyperlinkFormula('https://www.redfin.com/home/9', 'Redfin')
     ).toBe('=HYPERLINK("https://www.redfin.com/home/9","Redfin")');
   });
+
+  it('defensively handles a null/undefined label (JS callers skip TS)', () => {
+    // Signature says `label: string`, but the impl does `label ?? ''`;
+    // pin that runtime behavior so it stays intentional.
+    expect(
+      buildHyperlinkFormula('https://x.com', null as unknown as string)
+    ).toBe('=HYPERLINK("https://x.com","")');
+  });
 });
