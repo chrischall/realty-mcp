@@ -124,6 +124,31 @@ Reconciled and shipped:
   separate `PriceHistoryEvent` shape** (candidate #3). The returned
   `date` is echoed in the accessor's own form (epoch number or ISO
   string); returns `null` when no sold event has a usable date.
+- `urlToPath` (cohort candidate **F**) — reduces a portal URL (or bare
+  path) to its `pathname + search`. The ~4-line body was byte-identical
+  in `src/url.ts` across zillow / redfin / compass / homes (onehome uses
+  a different id scheme and is excluded); hoisted as the canonical
+  version. Absolute URL → path (host discarded), leading-slash path →
+  unchanged, bare segment → leading-slash coerced, malformed → graceful
+  path coercion (never throws). Pure.
+- `locationToSlug` (cohort candidate **G**) — free-text location → URL
+  slug (NFKD normalize, strip diacritics, lowercase, collapse runs of
+  non-alphanumerics to a single `-`, trim leading/trailing `-`). Hoisted
+  verbatim from the byte-identical compass + homes copies. `"Lake Lure,
+  NC"` → `"lake-lure-nc"`; a bare ZIP passes through unchanged. Pure.
+- `FIRST_DIGIT_TO_STATES` + `zipPlausibleStates` + `homesMatchZipState`
+  + `extractZipFromLocation` (cohort candidate **H**) — light geographic
+  sanity-checks for ZIP-keyed searches. The `FIRST_DIGIT_TO_STATES`
+  table maps a ZIP's first digit → plausible US states;
+  `zipPlausibleStates(zip)` returns them (`null` for non-US/unparseable
+  input, ZIP+4 tolerated); `homesMatchZipState(zip, homeStates)` returns
+  `false` ONLY when confident a returned listing's state is implausible
+  for the queried ZIP (catches the cross-continent search-fallback bug —
+  ZIP 28746 returning Seattle homes), `true` otherwise (incl. when it
+  can't make a determination); `extractZipFromLocation(location)` pulls a
+  standalone 5-digit ZIP from free text. Hoisted from `redfin-mcp/src/
+  geo.ts` — 1 consumer today but portable to all search-capable MCPs, so
+  shipped canonical now. Pure (static table + string ops).
 
 ## Phase-2 candidates (next minor: 0.2.x)
 
@@ -394,31 +419,33 @@ keyword set (`relist`, `sold`, `pending`, `contingent`,
 synonym sets ships in `realty-core` at the same time as the
 `PriceHistoryEvent` shape (existing candidate #3).
 
-### F. `urlToPath` — **MEDIUM** reuse, **phase-3**
+### F. `urlToPath` — ✅ **SHIPPED** in `realty-core` 0.2.x
+
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
 Identical 4-line implementation in `src/url.ts` across 4 of 5 MCPs
-(all except onehome). The reason to defer: each `url.ts` carries
-portal-specific helpers alongside (`extractPidFromUrl` in compass,
-`locationToSlug` in compass+homes, `buildPropertyUrl` in onehome).
-Hoisting `urlToPath` alone leaves a one-liner stub. The right moment
-is when the `BaseProperty` migration creates a `realty-core` HTTP
-utilities sub-module.
+(all except onehome). Hoisted verbatim as `urlToPath` alongside `G`
+and `H` rather than waiting on the `BaseProperty` HTTP-utilities
+sub-module — the portal-specific neighbours (`extractPidFromUrl`,
+`buildPropertyUrl`) stay per-consumer.
 
-### G. `locationToSlug` — **MEDIUM** reuse, **phase-3**
+### G. `locationToSlug` — ✅ **SHIPPED** in `realty-core` 0.2.x
+
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
 Byte-for-byte identical in `compass-mcp/src/url.ts:65` and
 `homes-mcp/src/url.ts:39` (NFKD + strip diacritics + lowercase +
-collapse non-alnum to `-`). Two consumers meets the threshold but
-this is path-building rather than domain logic. Ship alongside
-`urlToPath`.
+collapse non-alnum to `-`). Hoisted verbatim alongside `urlToPath`.
 
-### H. `zipPlausibleStates` + `homesMatchZipState` — **MEDIUM** reuse, **phase-3**
+### H. `zipPlausibleStates` + `homesMatchZipState` — ✅ **SHIPPED** in `realty-core` 0.2.x
+
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
 Present in `redfin-mcp/src/geo.ts:21-82` only today: a
 `FIRST_DIGIT_TO_STATES` table + plausibility check that catches
 search-engine region-resolution bugs (ZIP 28746 returning Seattle
-homes). Portal-agnostic — every search-capable MCP could use it.
-Gate on a second MCP adopting it before hoisting.
+homes). Portal-agnostic — shipped canonical now (1 consumer today)
+because it's portable to every search-capable cohort MCP.
 
 ### I. `estimateRentVsBuy` — **MEDIUM** reuse, **phase-3**
 
@@ -442,9 +469,9 @@ gated on the shape-alignment decision.
 | C | `priceDrop` | 5 of 5 | HIGH | ✅ shipped 0.2.x (was blocker for BaseProperty) |
 | D | `collectAddressAlternates` | 3 of 5 + 1 variant | HIGH | ✅ shipped 0.2.x |
 | E | `NormalizedEventType` + `mapEventType` | 4 of 5 | HIGH | ✅ shipped 0.2.x |
-| F | `urlToPath` | 4 of 5 | MEDIUM | phase-3 |
-| G | `locationToSlug` | 2 of 5 | MEDIUM | phase-3 |
-| H | `zipPlausibleStates` | 1 today, applicable to 5 | MEDIUM | phase-3 |
+| F | `urlToPath` | 4 of 5 | MEDIUM | ✅ shipped 0.2.x |
+| G | `locationToSlug` | 2 of 5 | MEDIUM | ✅ shipped 0.2.x |
+| H | `zipPlausibleStates` | 1 today, applicable to 5 | MEDIUM | ✅ shipped 0.2.x |
 | I | `estimateRentVsBuy` | 2 of 5 | MEDIUM | phase-3 |
 | J | `extractFeatures` + `ExtractedFeatures` | 5 of 5 (byte-identical) | HIGH | **shipped 0.x** (`loadCommunities` stays per-consumer — fs I/O) |
 | P | `lastSold` (leverages E) | 2 of 5 | HIGH | ✅ shipped 0.2.x (no PriceHistoryEvent needed) |

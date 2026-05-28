@@ -55,3 +55,13 @@ export { mapEventType } from './event-type.js';
 export type { NormalizedEventType } from './event-type.js';
 
 export { lastSold } from './last-sold.js';
+
+// --- URL / geo utilities (cohort candidates F, G, H) ---
+export { urlToPath } from './url-path.js';
+export { locationToSlug } from './location-slug.js';
+export {
+  FIRST_DIGIT_TO_STATES,
+  zipPlausibleStates,
+  homesMatchZipState,
+  extractZipFromLocation,
+} from './geo.js';
