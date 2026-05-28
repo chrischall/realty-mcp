@@ -206,3 +206,147 @@ out to each MCP over stdio (workable but ugly).
 **Recommended:** wait until 0.1.0 publishes and the cohort migration
 (linked tracker issue) is in flight before starting on `realty-meta`.
 The migration will surface the right shape for shared exports.
+
+## Additional candidates discovered via cohort scan (2026-05-28)
+
+These were surfaced by a code-explorer pass across all five cohort
+MCPs after the initial 0.1.0 scaffold and the in-flight phase-2 work.
+Each entry is verified to be implemented (or trivially shareable)
+across ≥ 2 cohort MCPs.
+
+**Key observation:** candidates A–E are tightly coupled to the
+existing phase-2 FormattedProperty / PriceHistoryEvent work, and in
+practice form a single cohesive "derived fields" PR (or set of small
+PRs) that needs to land in lockstep. `priceDrop` (C) and
+`collectAddressAlternates` (D) are direct prerequisites for a clean
+`BaseProperty` type — the shape can't be standardized while the
+math that derives those fields is scattered across the cohort.
+
+### A. `hoaToMonthlyUsd` — **HIGH** reuse, **phase-2**
+
+Present in 4-5 of 5 MCPs with the same `switch` table over
+`Annually | Quarterly | Monthly | SemiAnnually | Weekly`:
+
+- `redfin-mcp/src/derived.ts:23`
+- `zillow-mcp/src/tools/properties.ts:363`
+- `compass-mcp/src/tools/properties.ts:463`
+- `onehome-mcp/src/format.ts:213`
+- `homes-mcp/src/format.ts:27` — regex-tolerant variant for DOM-scraped strings
+
+Recommended: a single canonical `hoaToMonthlyUsd(amount, frequency)`
+in `realty-core` that accepts both the MLS enum vocabulary and the
+looser DOM-string forms (homes-mcp's variant is the most defensive
+union).
+
+### B. `daysSince` — **HIGH** reuse, **phase-2**
+
+`floor((Date.now() - parse(at)) / 86_400_000)` implemented in 3 of 5:
+
+- `onehome-mcp/src/format.ts:248` — takes ISO string
+- `homes-mcp/src/format.ts:63` — takes ISO string (near-identical to onehome)
+- `zillow-mcp/src/tools/properties.ts:519` — inlined (no extracted fn)
+- `compass-mcp/src/tools/properties.ts:533` — `daysSinceMs(ms)` — same logic, unix-ms input
+
+Redfin uses portal's own `daysOnZillow`-style field and falls back to
+the same expression only when absent. A union-typed
+`daysSince(at: string | number | undefined): number | null` in
+`realty-core` covers all variants. Pair with `hoaToMonthlyUsd`.
+
+### C. `priceDrop` — **HIGH** reuse, **phase-2** (blocker for BaseProperty)
+
+`(previous - current)` and `round((amount / previous) * 1000) / 10`
+implemented identically across 5 of 5 (inlined in 3, extracted in 2):
+
+- `redfin-mcp/src/derived.ts:59` — `priceDrop(curr, prev)` → `{ price_drop_amount, price_drop_percent }`
+- `homes-mcp/src/format.ts:77` — `computePriceDrop(prev, curr)` → `{ amount, percent }`
+- `zillow-mcp/src/tools/properties.ts:524-536` — inlined
+- `compass-mcp/src/tools/properties.ts:617-628` — inlined
+- `onehome-mcp/src/format.ts:337-349` — inlined
+
+The shorter `{ amount, percent }` key names are preferred. A
+canonical `priceDrop(prev, curr): { amount, percent } | null` in
+`realty-core` is a direct prerequisite for the `BaseProperty` shape
+(candidate #1) — `price_drop_*` fields can't be declared on a shared
+interface while the math is scattered.
+
+### D. `collectAddressAlternates` + `normalizeAddressForCompare` — **HIGH** reuse, **phase-2** (blocker for BaseProperty)
+
+Three MCPs define this pair nearly identically:
+
+- `redfin-mcp/src/derived.ts:112,123`
+- `zillow-mcp/src/tools/properties.ts:399,411` — byte-for-byte the same
+- `onehome-mcp/src/format.ts:261,273` — same internals, different outer signature
+- `compass-mcp/src/tools/by-address.ts:98` — `normalizeAddressForMatch` is the same logic under another name
+
+`address_alternates` is one of the 14 shared `BaseProperty` fields,
+so the math needs to ship in `realty-core` alongside the shape work.
+
+### E. `NormalizedEventType` enum + `mapEventType` — **HIGH** reuse, **phase-2** (alongside PriceHistoryEvent)
+
+Four MCPs independently define the same 8-member union + a
+string-to-enum mapper:
+
+- `zillow-mcp/src/tools/history-format.ts:37-45`
+- `redfin-mcp/src/tools/history.ts:77-86` — adds `Unknown` sentinel
+- `compass-mcp/src/tools/history.ts:62-70` — richest synonym set
+- `homes-mcp/src/tools/history.ts:45-53`
+
+All four do case-insensitive substring matching against the same
+keyword set (`relist`, `sold`, `pending`, `contingent`,
+`price change`, `withdrawn`, `delist`, etc.). Compass adds
+`coming soon`, `active`, `off market`/`expired`. A union of all four
+synonym sets ships in `realty-core` at the same time as the
+`PriceHistoryEvent` shape (existing candidate #4).
+
+### F. `urlToPath` — **MEDIUM** reuse, **phase-3**
+
+Identical 4-line implementation in `src/url.ts` across 4 of 5 MCPs
+(all except onehome). The reason to defer: each `url.ts` carries
+portal-specific helpers alongside (`extractPidFromUrl` in compass,
+`locationToSlug` in compass+homes, `buildPropertyUrl` in onehome).
+Hoisting `urlToPath` alone leaves a one-liner stub. The right moment
+is when the `BaseProperty` migration creates a `realty-core` HTTP
+utilities sub-module.
+
+### G. `locationToSlug` — **MEDIUM** reuse, **phase-3**
+
+Byte-for-byte identical in `compass-mcp/src/url.ts:65` and
+`homes-mcp/src/url.ts:39` (NFKD + strip diacritics + lowercase +
+collapse non-alnum to `-`). Two consumers meets the threshold but
+this is path-building rather than domain logic. Ship alongside
+`urlToPath`.
+
+### H. `zipPlausibleStates` + `homesMatchZipState` — **MEDIUM** reuse, **phase-3**
+
+Present in `redfin-mcp/src/geo.ts:21-82` only today: a
+`FIRST_DIGIT_TO_STATES` table + plausibility check that catches
+search-engine region-resolution bugs (ZIP 28746 returning Seattle
+homes). Portal-agnostic — every search-capable MCP could use it.
+Gate on a second MCP adopting it before hoisting.
+
+### I. `estimateRentVsBuy` — **MEDIUM** reuse, **phase-3**
+
+Two MCPs ship a rent-vs-buy tool:
+
+- `zillow-mcp/src/tools/affordability.ts:130-277` — `computeRentVsBuy` with per-year equity/remaining-mortgage detail
+- `homes-mcp/src/tools/rent-vs-buy.ts:99-178` — `estimateRentVsBuy` with parallel cumulative-cost arrays + break-even
+
+Same financial model and default rates (appreciation 3%, rent
+growth 3%, investment return 6%, maintenance 1%, closing 2.5%,
+selling 6%). Output shapes diverge enough that a unified core
+requires choosing one shape and migrating the other MCP. Phase-3,
+gated on the shape-alignment decision.
+
+### Summary
+
+| | Candidate | MCPs | Score | Timeline |
+|---|---|---|---|---|
+| A | `hoaToMonthlyUsd` | 4-5 of 5 | HIGH | phase-2 |
+| B | `daysSince` | 3 of 5 + 1 variant | HIGH | phase-2 |
+| C | `priceDrop` | 5 of 5 | HIGH | phase-2 (blocker for BaseProperty) |
+| D | `collectAddressAlternates` | 3 of 5 + 1 variant | HIGH | phase-2 (blocker for BaseProperty) |
+| E | `NormalizedEventType` + `mapEventType` | 4 of 5 | HIGH | phase-2 (alongside PriceHistoryEvent) |
+| F | `urlToPath` | 4 of 5 | MEDIUM | phase-3 |
+| G | `locationToSlug` | 2 of 5 | MEDIUM | phase-3 |
+| H | `zipPlausibleStates` | 1 today, applicable to 5 | MEDIUM | phase-3 |
+| I | `estimateRentVsBuy` | 2 of 5 | MEDIUM | phase-3 |
