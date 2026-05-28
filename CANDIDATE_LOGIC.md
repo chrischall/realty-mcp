@@ -58,6 +58,33 @@ Reconciled and shipped:
   an embedded quote terminated the formula's string literal early and
   produced a `#ERROR!` cell. The canonical helper escapes BOTH url and
   label, fixing the bug cohort-wide. Empty url → empty string.
+- `hoaToMonthlyUsd` (cohort candidate **A**, was §A below) — normalizes
+  an HOA fee to monthly USD via the per-frequency divisor table
+  (`Monthly` / `Annually` / `Quarterly` / `SemiAnnually` / `Weekly`).
+  Canonical accepts the UNION of input vocabularies: the MLS enum labels
+  AND the looser DOM-scraped strings (`"$250 / month"`, `"per year"`,
+  `"bi-annual"`), adopting homes-mcp's regex-tolerant matcher (the most
+  defensive variant — it strictly dominates the bare `switch`). Null-safe:
+  missing / zero / non-finite amount, missing frequency, or unparseable
+  frequency → `null` (the last with a stderr warning); result rounded to
+  the nearest dollar.
+- `daysSince` (cohort candidate **B**, was §B below) — whole days elapsed
+  since a timestamp, `floor((now - at) / 86_400_000)`. Canonical takes the
+  UNION input `string | number` (ISO/`Date.parse`-able string OR unix-ms),
+  covering the onehome/homes (string) and compass `daysSinceMs` (unix-ms)
+  variants. The `now` reference is an INJECTABLE second arg that defaults
+  to `Date.now()` so the function stays pure and tests can pin a fixed
+  clock — `Date.now()` is never called unconditionally inside. Matches
+  cohort behavior: returns the raw floor (same-day → `0`, future →
+  negative, no clamp); `null` only for missing / unparseable / non-finite
+  input.
+- `priceDrop` (cohort candidate **C**, was §C below) — `amount = previous
+  - current`, `percent = round((amount / previous) * 1000) / 10`.
+  Canonical key names are the shorter `{ amount, percent }` (homes-mcp's
+  shape) over redfin's `{ price_drop_amount, price_drop_percent }`.
+  Returns a single `null` when there is no real drop (`current >=
+  previous`, either input missing / non-finite, or `previous <= 0`) so
+  callers get a one-truthiness "is there a drop?" check.
 
 ## Phase-2 candidates (next minor: 0.2.x)
 
@@ -242,7 +269,9 @@ PRs) that needs to land in lockstep. `priceDrop` (C) and
 `BaseProperty` type — the shape can't be standardized while the
 math that derives those fields is scattered across the cohort.
 
-### A. `hoaToMonthlyUsd` — **HIGH** reuse, **phase-2**
+### A. `hoaToMonthlyUsd` — ✅ **SHIPPED** in `realty-core` 0.2.x
+
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
 Present in 4-5 of 5 MCPs with the same `switch` table over
 `Annually | Quarterly | Monthly | SemiAnnually | Weekly`:
@@ -258,7 +287,9 @@ in `realty-core` that accepts both the MLS enum vocabulary and the
 looser DOM-string forms (homes-mcp's variant is the most defensive
 union).
 
-### B. `daysSince` — **HIGH** reuse, **phase-2**
+### B. `daysSince` — ✅ **SHIPPED** in `realty-core` 0.2.x
+
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
 `floor((Date.now() - parse(at)) / 86_400_000)` implemented in 3 of 5, with a variant in a 4th:
 
@@ -272,7 +303,9 @@ the same expression only when absent. A union-typed
 `daysSince(at: string | number | undefined): number | null` in
 `realty-core` covers all variants. Pair with `hoaToMonthlyUsd`.
 
-### C. `priceDrop` — **HIGH** reuse, **phase-2** (blocker for BaseProperty)
+### C. `priceDrop` — ✅ **SHIPPED** in `realty-core` 0.2.x (was blocker for BaseProperty)
+
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
 `(previous - current)` and `round((amount / previous) * 1000) / 10`
 implemented identically across 5 of 5 (inlined in 3, extracted in 2):
@@ -361,9 +394,9 @@ gated on the shape-alignment decision.
 
 | | Candidate | MCPs | Score | Timeline |
 |---|---|---|---|---|
-| A | `hoaToMonthlyUsd` | 4-5 of 5 | HIGH | phase-2 |
-| B | `daysSince` | 3 of 5 + 1 variant | HIGH | phase-2 |
-| C | `priceDrop` | 5 of 5 | HIGH | phase-2 (blocker for BaseProperty) |
+| A | `hoaToMonthlyUsd` | 4-5 of 5 | HIGH | ✅ shipped 0.2.x |
+| B | `daysSince` | 3 of 5 + 1 variant | HIGH | ✅ shipped 0.2.x |
+| C | `priceDrop` | 5 of 5 | HIGH | ✅ shipped 0.2.x (was blocker for BaseProperty) |
 | D | `collectAddressAlternates` | 3 of 5 + 1 variant | HIGH | phase-2 (blocker for BaseProperty) |
 | E | `NormalizedEventType` + `mapEventType` | 4 of 5 | HIGH | phase-2 (alongside PriceHistoryEvent) |
 | F | `urlToPath` | 4 of 5 | MEDIUM | phase-3 |

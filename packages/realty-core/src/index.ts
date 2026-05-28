@@ -35,3 +35,9 @@ export type {
   ResolvedAddressOk,
   ResolvedAddressErr,
 } from './types.js';
+
+// --- derived numeric fields (cohort candidates A, B, C) ---
+export { hoaToMonthlyUsd } from './hoa.js';
+export { daysSince } from './days-since.js';
+export { priceDrop } from './price-drop.js';
+export type { PriceDrop } from './price-drop.js';
