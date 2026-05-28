@@ -20,6 +20,9 @@ export type {
   AffordabilityResult,
 } from './affordability.js';
 
+export { calculateMortgage } from './mortgage.js';
+export type { MortgageInput, MortgageBreakdown } from './mortgage.js';
+
 export type {
   ResolverVia,
   ResolvedAddress,
