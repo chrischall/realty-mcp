@@ -31,11 +31,13 @@ describe('sqftToAcres', () => {
     expect(sqftToAcres(Infinity)).toBeNull();
   });
 
-  it('does not collapse a tiny-but-real lot to null', () => {
-    // 100 sqft is a real (if tiny) lot -> 0.0023 acre -> rounds to 0,
-    // but the value is positive so it must NOT be null. round(0.0023,2)
-    // is 0 — acceptable as a rounded display value, distinct from the
-    // null "no lot" sentinel.
-    expect(sqftToAcres(100)).toBe(0);
+  it('guards a sub-~218-sqft positive lot to null (so "never 0" holds)', () => {
+    // A positive lot too small to round to a non-zero 2dp acreage is
+    // guarded to null rather than collapsed to 0 — that keeps the
+    // "non-null result is always > 0" invariant true. The smallest
+    // non-null result is ~218 sqft -> 0.01 acre; anything below that
+    // (e.g. 100 sqft -> 0.0023 acre -> round(…,2) === 0) returns null.
+    expect(sqftToAcres(218)).toBe(0.01);
+    expect(sqftToAcres(100)).toBeNull();
   });
 });
