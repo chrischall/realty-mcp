@@ -24,7 +24,10 @@
  *  - Type = the UNION of all four synonym sets, plus the `Unknown`
  *    sentinel (redfin) so unrecognised input never silently
  *    mis-buckets as `Listed`.
- *  - Case-insensitive SUBSTRING matching against the keyword set.
+ *  - Case-insensitive SUBSTRING matching against the keyword set, with
+ *    two word-boundary exceptions — `\bactive\b` and `\bclosed\b` — so
+ *    "Inactive"/"Deactivated" don't match Listed and "Foreclosed"
+ *    doesn't match Sold.
  *  - Specificity-ordered: tighter matches first, so "Relisted" beats
  *    "Listed", "Pending sale" beats "Sold", and "Price reduced" beats a
  *    bare "reduced".
@@ -49,9 +52,11 @@ export type NormalizedEventType =
 
 /**
  * Map a portal's free-text event/status string to the shared
- * {@link NormalizedEventType}. Case-insensitive substring matching;
- * order matters (most-specific first). Returns `'Unknown'` for missing
- * or unrecognised input rather than guessing.
+ * {@link NormalizedEventType}. Case-insensitive substring matching
+ * (`active`/`closed` are word-boundary-anchored so "Inactive" /
+ * "Foreclosed" don't false-match); order matters (most-specific first).
+ * Returns `'Unknown'` for missing or unrecognised input rather than
+ * guessing.
  *
  * @example mapEventType('Sold (Public Records)') // 'Sold'
  * @example mapEventType('Price Reduced')          // 'PriceChange'
@@ -83,7 +88,8 @@ export function mapEventType(raw: string | undefined | null): NormalizedEventTyp
   // Pending / contingent before Sold so "pending sale" doesn't hit "sold".
   if (s.includes('pending')) return 'Pending';
   if (s.includes('contingent')) return 'Contingent';
-  if (s.includes('sold') || s.includes('closed')) return 'Sold';
+  // `\bclosed\b` (not bare substring) so "Foreclosed" doesn't match Sold.
+  if (s.includes('sold') || /\bclosed\b/.test(s)) return 'Sold';
   // Price-movement synonyms (the full cohort union).
   if (
     s.includes('price change') ||
@@ -99,7 +105,9 @@ export function mapEventType(raw: string | undefined | null): NormalizedEventTyp
   if (
     s.includes('listed') ||
     s.includes('new listing') ||
-    s.includes('active') ||
+    // `\bactive\b` (not bare substring) so "Inactive" / "Deactivated"
+    // don't match Listed.
+    /\bactive\b/.test(s) ||
     s.includes('coming soon') ||
     s.includes('for sale')
   )

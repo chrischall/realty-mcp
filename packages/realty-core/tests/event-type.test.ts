@@ -71,6 +71,26 @@ describe('mapEventType', () => {
     expect(mapEventType('Pending')).toBe('Pending');
   });
 
+  it('does not false-match "active" inside "Inactive" / "Deactivated"', () => {
+    // `\bactive\b` word-boundary guard: substring "active" must not
+    // wrongly bucket these as Listed.
+    expect(mapEventType('Inactive')).toBe('Unknown');
+    expect(mapEventType('Deactivated')).toBe('Unknown');
+    expect(mapEventType('Inactive')).not.toBe('Listed');
+    expect(mapEventType('Deactivated')).not.toBe('Listed');
+    // Legitimate active matches still map to Listed.
+    expect(mapEventType('Active')).toBe('Listed');
+    expect(mapEventType('Active Listing')).toBe('Listed');
+  });
+
+  it('does not false-match "closed" inside "Foreclosed"', () => {
+    // `\bclosed\b` word-boundary guard: "Foreclosed" must not bucket as Sold.
+    expect(mapEventType('Foreclosed')).toBe('Unknown');
+    expect(mapEventType('Foreclosed')).not.toBe('Sold');
+    // Legitimate closed match still maps to Sold.
+    expect(mapEventType('Closed')).toBe('Sold');
+  });
+
   it('returns the Unknown sentinel for unrecognized / missing input', () => {
     expect(mapEventType('Foreclosure auction')).toBe('Unknown');
     expect(mapEventType('')).toBe('Unknown');

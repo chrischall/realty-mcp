@@ -85,12 +85,14 @@ export function lastSold<E>(
     if (mapEventType(get.type(e)) !== 'Sold') continue;
     const rawDate = get.date(e);
     const ts = toTimestamp(rawDate);
-    if (ts === null || rawDate === undefined) continue;
+    if (ts === null) continue;
     if (best === null || ts > best.ts) {
       const price = get.price(e);
       best = {
         ts,
-        date: rawDate,
+        // `ts !== null` (guarded above) guarantees `rawDate` was a
+        // defined number/string — `toTimestamp(undefined)` returns null.
+        date: rawDate as string | number,
         price: typeof price === 'number' ? price : null,
       };
     }
