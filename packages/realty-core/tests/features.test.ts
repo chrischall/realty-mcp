@@ -78,6 +78,21 @@ describe('extractFeatures', () => {
     );
   });
 
+  it('detects basement state across connector forms (colon, parenthetical)', () => {
+    // These connector alternatives were previously uncovered (and the
+    // colon / paren forms were silently broken by a dropped `|` in
+    // BASEMENT_CONNECTOR).
+    expect(extractFeatures('Basement: unfinished.', []).basement).toBe(
+      'unfinished'
+    );
+    expect(extractFeatures('Basement (unfinished).', []).basement).toBe(
+      'unfinished'
+    );
+    expect(extractFeatures('Basement: finished.', []).basement).toBe(
+      'finished'
+    );
+  });
+
   it('checks unfinished BEFORE finished (substring trap)', () => {
     // "finished" substring-matches inside "unfinished".
     expect(extractFeatures('Large unfinished basement.', []).basement).toBe(
@@ -101,9 +116,12 @@ describe('extractFeatures', () => {
   it('does NOT false-positive "basement with finished oak shelving" as finished', () => {
     // The canonical guard: "with" is not a basement-state connector, so
     // the shelving adjective must not flip the basement to finished.
+    // Pinned to the exact result: the basement IS mentioned but its state
+    // is not recognizable, so it resolves to 'unknown' (not merely
+    // "anything other than finished").
     expect(
       extractFeatures('Basement with finished oak shelving.', []).basement
-    ).not.toBe('finished');
+    ).toBe('unknown');
   });
 
   it('matches a community from the passed-in vocabulary', () => {
