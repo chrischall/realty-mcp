@@ -8,7 +8,7 @@ candidates for hoisting into `@chrischall/realty-core` beyond what
 Each entry: **where it lives today**, **estimated reuse value** (high
 / medium / low), and a **recommended timeline**.
 
-## Already in 0.1.0 (`realty-core` v0.1.x)
+## Already in 0.x (`realty-core` v0.2.x)
 
 Reconciled and shipped:
 
@@ -25,6 +25,14 @@ Reconciled and shipped:
   compass, homes, onehome all reinvent a similar regex inline.
 - `ResolverVia` / `ResolvedAddress` types — union of every `via`
   string any cohort MCP currently emits.
+- `calculateMortgage` + `MortgageInput` / `MortgageBreakdown` —
+  hoisted from zillow's `mortgage.ts` (the most complete cohort
+  reference, with redfin line-identical; compass / homes / onehome
+  the leaner variant). Pure PMT math with PITI decomposition,
+  > 80% LTV PMI gating, zero-interest straight-line fallback,
+  and explicit validation. Output is the union shape: zillow's
+  complete set plus `home_price` echo for the compass-family
+  wrappers.
 
 ## Already in `realty-core` 0.2.x (in flight)
 
@@ -70,30 +78,9 @@ per-portal extension. The cohort `FormattedProperty` types become
 to merge into. Without this, the umbrella tool's return type ends up
 as a discriminated union of five drifting record shapes.
 
-### 2. Mortgage math (`calculateMortgage`) — **HIGH** reuse, **next minor**
+### 2. Mortgage + affordability math — _both shipped in `realty-core` 0.2.x. See "Already in" above._
 
-Every MCP ships a `*_calculate_mortgage` tool:
-
-- zillow `src/tools/mortgage.ts` (147 lines)
-- redfin `src/tools/mortgage.ts` (147 lines — identical to zillow)
-- compass `src/tools/mortgage.ts` (93 lines — leaner shape, same math)
-- homes `src/tools/mortgage.ts` (93 lines — copy of compass)
-- onehome `src/tools/mortgage.ts` (91 lines — copy of compass minus
-  one field)
-
-The core PMT formula
-`M = P * r * (1+r)^n / ((1+r)^n - 1)` is identical to the digit
-across all five — same `propertyTaxRate` / `homeInsuranceRate` /
-`hoa_monthly` decomposition. Only the wrapping tool description
-differs (portal name).
-
-**Recommended:** ship `calculateMortgage(input): MortgageBreakdown`
-in `realty-core` as a pure function. Each MCP keeps its
-`*_calculate_mortgage` registration as a thin tool wrapper around it.
-
-### 3. Affordability math (`calculateAffordability`) — _shipped in 0.2.x — see "Already in `realty-core` 0.2.x" above_
-
-### 4. Price-history shape — **HIGH** reuse, **next minor**
+### 3. Price-history shape — **HIGH** reuse, **next minor**
 
 4 of 5 MCPs (all except onehome) have `get_price_history` and
 emit a list of `{ date, event, price, … }` records. Field names
@@ -111,7 +98,7 @@ shape is already mostly stable.
 
 ## Phase-3 candidates (depends on real demand: 0.3.x+)
 
-### 5. Healthcheck base class — **MEDIUM** reuse
+### 4. Healthcheck base class — **MEDIUM** reuse
 
 Every MCP has a `*_healthcheck` tool. zillow / redfin / compass /
 homes are all ~179 lines, onehome is 198 lines. The shape is:
@@ -129,7 +116,7 @@ type when a SECOND consumer (probably the meta-MCP) needs to fan out
 healthchecks across the cohort. Until then, the inline copies are
 fine.
 
-### 6. Climate / school / walk-score — **LOW** reuse (today)
+### 5. Climate / school / walk-score — **LOW** reuse (today)
 
 Only present on a subset:
 
@@ -142,7 +129,7 @@ Only present on a subset:
 the consumer. Revisit when at least one other MCP wires up climate
 risk or schools.
 
-### 7. JSON-LD `RealEstateListing` parser — **MEDIUM** reuse
+### 6. JSON-LD `RealEstateListing` parser — **MEDIUM** reuse
 
 homes-mcp and compass-mcp both parse `Schema.org` JSON-LD nodes from
 SSR'd HTML. homes uses `extractJsonLd` + `findGraphNode`; compass
@@ -153,7 +140,7 @@ fallback path) adopts JSON-LD parsing, hoist `extractJsonLd` +
 `findGraphNode` then. Two consumers is borderline; three is the
 threshold.
 
-### 8. `extractMlsSuffix` + `~MLS` routing — **LOW** reuse (today)
+### 7. `extractMlsSuffix` + `~MLS` routing — **LOW** reuse (today)
 
 onehome has session-routing keyed by listing-id `~MLS` suffix
 (`src/client.ts:72-86`). No other cohort MCP uses this convention —
@@ -161,7 +148,7 @@ it's a OneHome quirk because OneHome is the multi-MLS aggregator.
 
 **Recommended:** **don't hoist.** Keep as portal-specific.
 
-### 9. URL hyperlink formula for Sheets paste — **MEDIUM** reuse
+### 8. URL hyperlink formula for Sheets paste — **MEDIUM** reuse
 
 Every MCP's `FormattedProperty` includes a `portal_url_hyperlink`
 field — a `=HYPERLINK(...)` formula. Each MCP builds it the same way
