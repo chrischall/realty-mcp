@@ -240,7 +240,7 @@ union).
 
 ### B. `daysSince` — **HIGH** reuse, **phase-2**
 
-`floor((Date.now() - parse(at)) / 86_400_000)` implemented in 3 of 5:
+`floor((Date.now() - parse(at)) / 86_400_000)` implemented in 3 of 5, with a variant in a 4th:
 
 - `onehome-mcp/src/format.ts:248` — takes ISO string
 - `homes-mcp/src/format.ts:63` — takes ISO string (near-identical to onehome)
@@ -271,7 +271,7 @@ interface while the math is scattered.
 
 ### D. `collectAddressAlternates` + `normalizeAddressForCompare` — **HIGH** reuse, **phase-2** (blocker for BaseProperty)
 
-Three MCPs define this pair nearly identically:
+Three MCPs define this pair nearly identically, with a fourth under a different name:
 
 - `redfin-mcp/src/derived.ts:112,123`
 - `zillow-mcp/src/tools/properties.ts:399,411` — byte-for-byte the same
@@ -296,7 +296,7 @@ keyword set (`relist`, `sold`, `pending`, `contingent`,
 `price change`, `withdrawn`, `delist`, etc.). Compass adds
 `coming soon`, `active`, `off market`/`expired`. A union of all four
 synonym sets ships in `realty-core` at the same time as the
-`PriceHistoryEvent` shape (existing candidate #4).
+`PriceHistoryEvent` shape (existing candidate #3).
 
 ### F. `urlToPath` — **MEDIUM** reuse, **phase-3**
 
