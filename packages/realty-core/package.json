@@ -1,0 +1,27 @@
+{
+  "name": "@chrischall/realty-core",
+  "version": "0.1.0",
+  "description": "Pure, dependency-free realty-domain helpers — address tokenisation + match scoring, USPS street-suffix variants, locality alias remap, free-text address parsing. Hoisted from the realty MCP cohort.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrischall/realty-mcp.git",
+    "directory": "packages/realty-core"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  }
+}

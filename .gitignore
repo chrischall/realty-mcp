@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.DS_Store
+.env
+*.log
+
+# Per-package build outputs
+packages/*/dist/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/

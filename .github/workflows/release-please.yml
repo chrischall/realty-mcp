@@ -1,0 +1,139 @@
+name: release-please
+
+# Single-workflow monorepo release pipeline mirroring fetchproxy /
+# ofw-mcp. release-please-action opens ONE combined release PR
+# (linked-versions). When that PR merges, it cuts a single
+# `v<NEXT>` tag and the publish job picks that up.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      republish_tag:
+        description: 'Existing tag to re-publish (e.g. v0.1.0). Blank = skip publish.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      pr: ${{ steps.release.outputs.pr }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PAT }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Checkout for cross-dep sync
+        if: steps.release.outputs.pr
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Setup Node for cross-dep sync
+        if: steps.release.outputs.pr
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Sync cross-package caret deps in the release PR
+        if: steps.release.outputs.pr
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          PR_OUTPUT: ${{ steps.release.outputs.pr }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER=$(printf '%s' "$PR_OUTPUT" | jq -r .number)
+          PR_HEAD=$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)
+          git fetch origin "$PR_HEAD"
+          git checkout "$PR_HEAD"
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "Syncing cross-package @chrischall/* deps to ^${NEW_VERSION}"
+          for pkg in packages/realty-core; do
+            node -e "
+              const fs = require('fs');
+              const file = '${pkg}/package.json';
+              const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+              let changed = false;
+              for (const key of ['dependencies', 'devDependencies', 'peerDependencies']) {
+                if (!j[key]) continue;
+                for (const dep of Object.keys(j[key])) {
+                  if (dep.startsWith('@chrischall/') && j[key][dep] !== '^${NEW_VERSION}') {
+                    j[key][dep] = '^${NEW_VERSION}';
+                    changed = true;
+                  }
+                }
+              }
+              if (changed) fs.writeFileSync(file, JSON.stringify(j, null, 2) + '\n');
+            "
+          done
+          if git diff --quiet; then
+            echo "No cross-package dep updates needed."
+            exit 0
+          fi
+          npm install --package-lock-only --ignore-scripts
+          git add -A
+          git -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              -c user.name='github-actions[bot]' \
+              commit -m "chore: sync cross-package @chrischall/* deps to ^${NEW_VERSION}"
+          git push origin HEAD:"$PR_HEAD"
+
+  publish:
+    needs: release-please
+    if: |
+      needs.release-please.outputs.release_created == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.republish_tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.republish_tag }}
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Strip always-auth from .npmrc
+        run: sed -i '/always-auth/d' "$NPM_CONFIG_USERCONFIG"
+
+      - run: npm ci
+
+      - name: Set umbrella VERSION env
+        run: |
+          TAG="${{ needs.release-please.outputs.tag_name || inputs.republish_tag }}"
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Build packages
+        run: npm run build --workspace=@chrischall/realty-core
+
+      - name: Publish @chrischall/realty-core to npm
+        run: |
+          PKG_VERSION=$(node -p "require('./packages/realty-core/package.json').version")
+          PUBLISHED=$(npm view "@chrischall/realty-core@${PKG_VERSION}" version 2>/dev/null || true)
+          if [ "$PUBLISHED" = "$PKG_VERSION" ]; then
+            echo "npm already has @chrischall/realty-core@${PKG_VERSION} — skipping."
+            exit 0
+          fi
+          npm publish --workspace=@chrischall/realty-core --access=public --provenance
