@@ -27,6 +27,7 @@ Current line: **0.1.x** — `@chrischall/realty-core` only.
 | `npm run build` | TS build for every workspace. |
 | `npm run typecheck` | `tsc -b` against `realty-core`. |
 | `npm test --workspace=@chrischall/realty-core` | Run just the core package's tests. |
+| `npm run release:core` | Manual publish of `@chrischall/realty-core` (rare — release-please normally owns this). Uses `publishConfig` from the package. |
 
 ## Conventions
 

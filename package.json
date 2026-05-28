@@ -10,7 +10,8 @@
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b packages/realty-core"
+    "typecheck": "tsc -b packages/realty-core",
+    "release:core": "npm publish --workspace=@chrischall/realty-core"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
