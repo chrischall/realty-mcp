@@ -85,6 +85,18 @@ Reconciled and shipped:
   Returns a single `null` when there is no real drop (`current >=
   previous`, either input missing / non-finite, or `previous <= 0`) so
   callers get a one-truthiness "is there a drop?" check.
+- `extractFeatures` + `ExtractedFeatures` (candidate J) — hoisted from
+  the full `src/features.ts` module duplicated byte-for-byte across all
+  5 cohort MCPs. Pure keyword extraction (lake_front, hot_tub, basement
+  state, furnished, dock, community) over a description string plus a
+  caller-supplied community vocabulary (`string[]`). onehome-mcp's
+  basement detector is canonical: its `BASEMENT_CONNECTOR` conjunct
+  class `(?:is|was|are|were|—|–|,|;|:|()` replaces the looser
+  `[^.!?]{0,30}?` window the others use, so "basement with finished oak
+  shelving" no longer false-positives to `finished`. `loadCommunities`
+  (the env-var-driven JSON file read) stays per-consumer — it does
+  filesystem I/O, so hoisting it would add a `node:fs` dep and break
+  the no-I/O invariant. It just produces the `communities` argument.
 
 ## Phase-2 candidates (next minor: 0.2.x)
 
@@ -403,3 +415,4 @@ gated on the shape-alignment decision.
 | G | `locationToSlug` | 2 of 5 | MEDIUM | phase-3 |
 | H | `zipPlausibleStates` | 1 today, applicable to 5 | MEDIUM | phase-3 |
 | I | `estimateRentVsBuy` | 2 of 5 | MEDIUM | phase-3 |
+| J | `extractFeatures` + `ExtractedFeatures` | 5 of 5 (byte-identical) | HIGH | **shipped 0.x** (`loadCommunities` stays per-consumer — fs I/O) |
