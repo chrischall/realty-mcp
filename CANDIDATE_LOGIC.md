@@ -149,6 +149,33 @@ Reconciled and shipped:
   standalone 5-digit ZIP from free text. Hoisted from `redfin-mcp/src/
   geo.ts` — 1 consumer today but portable to all search-capable MCPs, so
   shipped canonical now. Pure (static table + string ops).
+- `estimateRentVsBuy` + `RentVsBuyInput` / `RentVsBuyResult` /
+  `RentVsBuyYear` / `RentVsBuyInputsUsed` (candidate **I**) — the
+  trickiest hoist: two MCPs implement the SAME financial model but with
+  DIVERGENT output shapes, so the canonical shape is a designed superset
+  rather than a copy. Reconciled from zillow's richer `computeRentVsBuy`
+  (per-year `equity_if_sold_now` / `remaining_mortgage` / `home_value`
+  detail) and homes's simpler `estimateRentVsBuy` (parallel
+  `cumulative_buy_cost[]` / `cumulative_rent_cost[]` arrays + a headline
+  `break_even_year`). **Canonical shape unifies zillow's per-year detail
+  + homes's cumulative/break-even** into ONE per-year row type — `years:
+  Array<{ year, home_value, remaining_mortgage, equity_if_sold_now,
+  cumulative_buy_cost, cumulative_rent_cost }>` — plus a top-level
+  `break_even_year: number | null` and an `inputs` echo with every rate
+  assumption resolved to its default. Each consumer's existing output is
+  a projection of this shape: zillow's `yearly[]` is the equity columns
+  of `years[]`; homes's arrays are `years.map(y => y.cumulative_buy_cost
+  / y.cumulative_rent_cost)` and its `break_even_year` is the top-level
+  field. Shared default rates: appreciation 3%, rent growth 3%,
+  investment return 6%, maintenance 1%, property tax 1.1%, closing 2.5%,
+  selling 6%, loan term 30y; canonical default horizon 10 years. The
+  per-year `cumulative_buy_cost` is NET of equity-if-sold (zillow's
+  `buy_net_if_sold`) and `cumulative_rent_cost` is net of the renter's
+  invested-capital gain (zillow's `rent_net`), so break-even is the first
+  year buy ≤ rent on a meaningful net basis every year — replacing
+  homes's weaker gross-outflow array comparison. Pure / dependency-free,
+  with the same validation discipline as `calculateMortgage` /
+  `calculateAffordability`.
 
 ## Phase-2 candidates (next minor: 0.2.x)
 
@@ -447,18 +474,30 @@ search-engine region-resolution bugs (ZIP 28746 returning Seattle
 homes). Portal-agnostic — shipped canonical now (1 consumer today)
 because it's portable to every search-capable cohort MCP.
 
-### I. `estimateRentVsBuy` — **MEDIUM** reuse, **phase-3**
+### I. `estimateRentVsBuy` — ✅ **SHIPPED** in `realty-core` 0.2.x
 
-Two MCPs ship a rent-vs-buy tool:
+_Shipped — see the "Already in `realty-core` 0.2.x" list above._
+
+Two MCPs ship a rent-vs-buy tool with DIVERGENT output shapes:
 
 - `zillow-mcp/src/tools/affordability.ts:130-277` — `computeRentVsBuy` with per-year equity/remaining-mortgage detail
 - `homes-mcp/src/tools/rent-vs-buy.ts:99-178` — `estimateRentVsBuy` with parallel cumulative-cost arrays + break-even
 
 Same financial model and default rates (appreciation 3%, rent
 growth 3%, investment return 6%, maintenance 1%, closing 2.5%,
-selling 6%). Output shapes diverge enough that a unified core
-requires choosing one shape and migrating the other MCP. Phase-3,
-gated on the shape-alignment decision.
+selling 6%, tax 1.1%, term 30y, horizon — canonicalized to 10).
+The shape-alignment decision: the canonical `RentVsBuyResult`
+**unifies zillow's per-year detail with homes's cumulative /
+break-even** into a single `years[]` row type
+(`{ year, home_value, remaining_mortgage, equity_if_sold_now,
+cumulative_buy_cost, cumulative_rent_cost }`) plus a top-level
+`break_even_year` and an `inputs` echo. Each consumer's existing
+output is a clean projection of this shape (zillow reads the equity
+columns; homes reads `years.map(y => y.cumulative_buy_cost)` +
+`break_even_year`). Break-even uses zillow's net-of-equity rule
+(`buy_net_if_sold` vs `rent_net`) evaluated on EVERY year — a
+strictly more meaningful definition than homes's gross-cost array
+comparison.
 
 ### Summary
 
@@ -472,6 +511,6 @@ gated on the shape-alignment decision.
 | F | `urlToPath` | 4 of 5 | MEDIUM | ✅ shipped 0.2.x |
 | G | `locationToSlug` | 2 of 5 | MEDIUM | ✅ shipped 0.2.x |
 | H | `zipPlausibleStates` | 1 today, applicable to 5 | MEDIUM | ✅ shipped 0.2.x |
-| I | `estimateRentVsBuy` | 2 of 5 | MEDIUM | phase-3 |
+| I | `estimateRentVsBuy` | 2 of 5 (divergent shapes) | MEDIUM | ✅ shipped 0.2.x (canonical shape unifies zillow per-year detail + homes cumulative/break-even) |
 | J | `extractFeatures` + `ExtractedFeatures` | 5 of 5 (byte-identical) | HIGH | **shipped 0.x** (`loadCommunities` stays per-consumer — fs I/O) |
 | P | `lastSold` (leverages E) | 2 of 5 | HIGH | ✅ shipped 0.2.x (no PriceHistoryEvent needed) |
