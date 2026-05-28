@@ -65,3 +65,13 @@ export {
   homesMatchZipState,
   extractZipFromLocation,
 } from './geo.js';
+
+// --- region:rent-vs-buy (cohort candidate I) ---
+export { estimateRentVsBuy } from './rent-vs-buy.js';
+export type {
+  RentVsBuyInput,
+  RentVsBuyResult,
+  RentVsBuyYear,
+  RentVsBuyInputsUsed,
+} from './rent-vs-buy.js';
+// --- endregion:rent-vs-buy ---
