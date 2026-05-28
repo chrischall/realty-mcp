@@ -26,6 +26,14 @@ Reconciled and shipped:
 - `ResolverVia` / `ResolvedAddress` types — union of every `via`
   string any cohort MCP currently emits.
 
+## Already in `realty-core` 0.2.x (in flight)
+
+- `calculateAffordability` — hoisted from the zillow/redfin lean
+  closed-form impl; the compass/homes/onehome variants compute the
+  same answer via a slightly different inversion. The cohort
+  `*_calculate_affordability` tools become thin wrappers (~30 lines
+  each instead of ~120) over the pure core.
+
 ## Phase-2 candidates (next minor: 0.2.x)
 
 ### 1. `FormattedProperty` shape unification — **HIGH** reuse, **next minor**
@@ -83,24 +91,7 @@ differs (portal name).
 in `realty-core` as a pure function. Each MCP keeps its
 `*_calculate_mortgage` registration as a thin tool wrapper around it.
 
-### 3. Affordability math (`calculateAffordability`) — **HIGH** reuse, **next minor**
-
-Identical situation to #2:
-
-- zillow `affordability.ts` (364 lines — the largest; has the
-  most output fields)
-- redfin `affordability.ts` (127 lines)
-- compass `affordability.ts` (124 lines)
-- homes `affordability.ts` (124 lines)
-- onehome `affordability.ts` (117 lines)
-
-The core math (DTI-based max-price inverse-PMT) is the same.
-zillow's extra 240 lines are explanation strings and bucket
-breakdowns; trivial to keep as a portal-specific layer over the
-shared core.
-
-**Recommended:** ship `calculateAffordability(input): AffordabilityResult`
-alongside #2. Pairs well.
+### 3. Affordability math (`calculateAffordability`) — _shipped in 0.2.x — see "Already in `realty-core` 0.2.x" above_
 
 ### 4. Price-history shape — **HIGH** reuse, **next minor**
 
