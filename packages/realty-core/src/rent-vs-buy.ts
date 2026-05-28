@@ -182,6 +182,8 @@ export function estimateRentVsBuy(input: RentVsBuyInput): RentVsBuyResult {
   if (horizon <= 0) throw new Error('horizon_years must be positive');
 
   const term_years = input.loan_term_years ?? 30;
+  if (term_years <= 0) throw new Error('loan_term_years must be positive');
+
   const tax_rate = (input.property_tax_rate ?? 1.1) / 100;
   const insurance = input.insurance_annual ?? 0;
   const hoa_annual = (input.hoa_monthly ?? 0) * 12;
@@ -219,19 +221,23 @@ export function estimateRentVsBuy(input: RentVsBuyInput): RentVsBuyResult {
   let break_even: number | null = null;
 
   for (let y = 1; y <= horizon; y++) {
-    // 12 months of carrying costs, charged on the year's opening home value.
-    const year_pi = monthly_pi * 12;
-    const year_tax = home_value * tax_rate;
-    const year_maint = home_value * maint_rate;
-    cum_buy_outflow += year_pi + year_tax + insurance + hoa_annual + year_maint;
-
-    // Amortize the loan month by month so remaining_mortgage is exact.
+    // Amortize the loan month by month so remaining_mortgage is exact, and
+    // accumulate the ACTUAL P&I paid this year. `pi_m` is capped at payoff
+    // (`Math.min(...)`), so once the loan is gone no phantom payment accrues
+    // — the cumulative ledger and the amortization use the SAME P&I number.
+    let year_pi = 0;
     for (let m = 0; m < 12; m++) {
       const int_m = principal_remaining * r;
       const pi_m = Math.min(monthly_pi, principal_remaining + int_m);
       const prin_m = pi_m - int_m;
       principal_remaining = Math.max(0, principal_remaining - prin_m);
+      year_pi += pi_m;
     }
+
+    // 12 months of carrying costs, charged on the year's opening home value.
+    const year_tax = home_value * tax_rate;
+    const year_maint = home_value * maint_rate;
+    cum_buy_outflow += year_pi + year_tax + insurance + hoa_annual + year_maint;
 
     // Rent for the year, then grow it for next year.
     cum_rent += monthly_rent * 12;

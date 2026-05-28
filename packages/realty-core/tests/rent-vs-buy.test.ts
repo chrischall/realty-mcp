@@ -288,4 +288,69 @@ describe('estimateRentVsBuy', () => {
       })
     ).toThrow(/horizon_years/);
   });
+
+  it('throws when loan_term_years is not positive', () => {
+    expect(() =>
+      estimateRentVsBuy({
+        home_price: 500_000,
+        down_payment: 100_000,
+        interest_rate: 6,
+        monthly_rent: 2_500,
+        loan_term_years: 0,
+      })
+    ).toThrow(/loan_term_years/);
+    expect(() =>
+      estimateRentVsBuy({
+        home_price: 500_000,
+        down_payment: 100_000,
+        interest_rate: 6,
+        monthly_rent: 2_500,
+        loan_term_years: -5,
+      })
+    ).toThrow(/loan_term_years/);
+  });
+
+  it('adds no phantom P&I to cumulative_buy_cost after the loan is paid off', () => {
+    // 1-year, 0% loan on a fully financed $120k home: year 1 pays the loan
+    // off entirely ($120k principal / 12 months = $10k/mo). Years 2 & 3 must
+    // add ZERO P&I to the cumulative ledger — only the non-P&I carrying
+    // costs (tax, insurance, HOA, maintenance) accrue.
+    const r = estimateRentVsBuy({
+      home_price: 120_000,
+      down_payment: 0,
+      interest_rate: 0,
+      monthly_rent: 1_000,
+      loan_term_years: 1,
+      horizon_years: 3,
+    });
+
+    // The loan is paid off by end of year 1.
+    expect(r.years[0].remaining_mortgage).toBeCloseTo(0, 6);
+    expect(r.years[1].remaining_mortgage).toBeCloseTo(0, 6);
+    expect(r.years[2].remaining_mortgage).toBeCloseTo(0, 6);
+
+    // Reconstruct the gross outflow per year by adding equity back to the
+    // net cumulative_buy_cost. The year-over-year delta in gross outflow for
+    // years 2 and 3 must be the non-P&I carrying costs ONLY (no phantom
+    // $120k/yr mortgage payment).
+    const grossOutflow = (i: number) =>
+      r.years[i].cumulative_buy_cost + r.years[i].equity_if_sold_now;
+
+    // Non-P&I carrying costs for a year, charged on that year's opening
+    // home value (default tax 1.1%, maintenance 1%; insurance/HOA = 0).
+    const tax_rate = 0.011;
+    const maint_rate = 0.01;
+    // Year 2 opens on the home value at end of year 1 (1 appreciation step).
+    const hvYear2Open = 120_000 * 1.03;
+    const hvYear3Open = 120_000 * 1.03 * 1.03;
+    const carry2 = hvYear2Open * (tax_rate + maint_rate);
+    const carry3 = hvYear3Open * (tax_rate + maint_rate);
+
+    const delta2 = grossOutflow(1) - grossOutflow(0);
+    const delta3 = grossOutflow(2) - grossOutflow(1);
+
+    // No phantom P&I: the increments are the carrying costs alone.
+    expect(delta2).toBeCloseTo(carry2, 2);
+    expect(delta3).toBeCloseTo(carry3, 2);
+  });
 });
