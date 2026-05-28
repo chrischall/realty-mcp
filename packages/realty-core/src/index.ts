@@ -25,6 +25,10 @@ export type { MortgageInput, MortgageBreakdown } from './mortgage.js';
 
 export { sqftToAcres, SQFT_PER_ACRE } from './sqft-acres.js';
 
+export { cleanTaxAnnual, TAX_SENTINEL_THRESHOLD } from './tax.js';
+
+export { buildHyperlinkFormula } from './hyperlink.js';
+
 export type {
   ResolverVia,
   ResolvedAddress,

@@ -41,6 +41,23 @@ Reconciled and shipped:
   same answer via a slightly different inversion. The cohort
   `*_calculate_affordability` tools become thin wrappers (~30 lines
   each instead of ~120) over the pure core.
+- `cleanTaxAnnual` (round-4 candidate **K**) — nulls out the
+  not-yet-assessed `tax_annual` placeholder that portals surface on
+  new-construction listings. Reconciled from redfin `cleanTaxAnnual`
+  (`=== 0 || === 1`), compass `sanitizeTaxAnnual` (`<= 1`), homes
+  `isTaxSentinel` (`< 10`), plus zillow + onehome inline (`<= 1`).
+  Canonical adopts homes's production-calibrated `< 10` threshold (the
+  only one tuned against real 0–9 new-build placeholders, homes-mcp#17)
+  and redfin's richer `{ tax_annual, tax_status }` return shape. A
+  missing / non-finite input is treated as ABSENT (not a sentinel).
+- `buildHyperlinkFormula` (round-4 candidate **L**, was §8 below) —
+  the `=HYPERLINK("<url>","<label>")` builder for the
+  `portal_url_hyperlink` field. **Fixes a latent bug:** redfin + homes
+  doubled an embedded `"` (Sheets escapes a quote inside a string
+  literal by doubling it), but zillow, compass, and onehome did NOT —
+  an embedded quote terminated the formula's string literal early and
+  produced a `#ERROR!` cell. The canonical helper escapes BOTH url and
+  label, fixing the bug cohort-wide. Empty url → empty string.
 
 ## Phase-2 candidates (next minor: 0.2.x)
 
@@ -148,15 +165,18 @@ it's a OneHome quirk because OneHome is the multi-MLS aggregator.
 
 **Recommended:** **don't hoist.** Keep as portal-specific.
 
-### 8. URL hyperlink formula for Sheets paste — **MEDIUM** reuse
+### 8. URL hyperlink formula for Sheets paste — ✅ **SHIPPED** (candidate L)
 
 Every MCP's `FormattedProperty` includes a `portal_url_hyperlink`
 field — a `=HYPERLINK(...)` formula. Each MCP builds it the same way
 (`buildHyperlinkFormula(url, portalLabel)`).
 
-**Recommended:** hoist alongside the `BaseProperty` work in #1 — it's
-a one-liner that benefits from a single canonical implementation
-(matches the cohort convention of escape-quoting the URL and label).
+**Shipped** as `buildHyperlinkFormula(url, label)` in `realty-core`
+0.2.x — see the "Already in `realty-core` 0.2.x" list above. The
+consolidation also fixed a latent missing-quote-escaping bug that was
+present in zillow / compass / onehome (they did not double an embedded
+`"`, producing `#ERROR!` cells); the canonical helper escapes both url
+and label.
 
 ## `realty-meta` package outline (0.x → 1.0 path)
 
