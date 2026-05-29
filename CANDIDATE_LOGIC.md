@@ -151,10 +151,12 @@ Reconciled and shipped:
   table maps a ZIP's first digit → plausible US states;
   `zipPlausibleStates(zip)` returns them (`null` for non-US/unparseable
   input, ZIP+4 tolerated); `homesMatchZipState(zip, homeStates)` returns
-  `false` ONLY when confident a returned listing's state is implausible
-  for the queried ZIP (catches the cross-continent search-fallback bug —
-  ZIP 28746 returning Seattle homes), `true` otherwise (incl. when it
-  can't make a determination); `extractZipFromLocation(location)` pulls a
+  `false` ONLY when confident the returned listings are implausible for
+  the queried ZIP — i.e. the in-state homes are not a MAJORITY of the
+  usable set (catches the cross-continent search-fallback bug — ZIP 28746
+  returning Seattle homes — even on partially-poisoned mixed sets),
+  `true` otherwise (incl. when it can't make a determination);
+  `extractZipFromLocation(location)` pulls a
   standalone 5-digit ZIP from free text. Hoisted from `redfin-mcp/src/
   geo.ts` — 1 consumer today but portable to all search-capable MCPs, so
   shipped canonical now. Pure (static table + string ops).

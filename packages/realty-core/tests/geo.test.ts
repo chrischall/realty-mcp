@@ -66,12 +66,23 @@ describe('homesMatchZipState', () => {
     expect(homesMatchZipState('28746', ['WA'])).toBe(false);
   });
 
-  it('returns true when at least one home matches even if others do not', () => {
-    expect(homesMatchZipState('28746', ['WA', 'NC'])).toBe(true);
+  it('returns true when a clear majority of homes are in-state', () => {
+    expect(homesMatchZipState('28746', ['NC', 'NC', 'NC'])).toBe(true);
+    // One stray out-of-state home in an otherwise in-state set still matches.
+    expect(homesMatchZipState('28746', ['NC', 'NC', 'NC', 'WA'])).toBe(true);
+  });
+
+  it('rejects a mixed set where in-state homes are not a majority', () => {
+    // Partially-poisoned set: a single plausible home must not rescue a
+    // mostly-cross-continent result (the old "any plausible ⇒ matched" bug).
+    expect(homesMatchZipState('28746', ['WA', 'WA', 'WA', 'NC'])).toBe(false);
+    // An even split is not a majority → reject.
+    expect(homesMatchZipState('28746', ['WA', 'NC'])).toBe(false);
   });
 
   it('case-folds the returned home states', () => {
     expect(homesMatchZipState('28746', ['nc'])).toBe(true);
+    expect(homesMatchZipState('28746', ['nc', 'sc'])).toBe(true);
   });
 
   it('does not reject when it cannot make a determination', () => {
