@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/chrischall/realty-mcp/compare/v0.4.0...v0.4.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **ci:** treat instant-merge race as success in auto-merge arm ([#20](https://github.com/chrischall/realty-mcp/issues/20)) ([6de13c0](https://github.com/chrischall/realty-mcp/commit/6de13c0aab5ee06998311370cd7abc8abf44de80))
+* **realty-core:** accurate package description + majority geo guard ([#22](https://github.com/chrischall/realty-mcp/issues/22)) ([68f63d0](https://github.com/chrischall/realty-mcp/commit/68f63d036664d60b9155b2f06b954dc8241e7def))
+
 ## [0.4.0](https://github.com/chrischall/realty-mcp/compare/v0.3.1...v0.4.0) (2026-05-29)
 
 
