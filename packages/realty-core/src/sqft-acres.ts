@@ -31,16 +31,22 @@ export const SQFT_PER_ACRE = 43_560;
  * Convert a lot size in square feet to acres, rounded to 2 decimals.
  *
  * Null-safe by design: returns `null` for any non-positive, missing,
- * or non-finite input (condos with no lot, absent data, NaN) — never
- * `0`, so callers can distinguish "no lot" from "a zero-acre lot".
+ * or non-finite input (condos with no lot, absent data, NaN) AND for a
+ * positive lot too small to round to a non-zero 2dp acreage (below
+ * ~218 sqft). So a non-null result is always `> 0` — callers treat
+ * `null` as "no expressible acreage" and never have to special-case a
+ * `0` return. (The cohort's inline `lot_size_acres` derivations adopt
+ * this same guard, so consumers stay consistent on migration.)
  *
  * @example sqftToAcres(45_738) // 1.05
  * @example sqftToAcres(13_503) // 0.31
+ * @example sqftToAcres(100)    // null (rounds below 0.01)
  * @example sqftToAcres(null)   // null
  */
 export function sqftToAcres(sqft: number | null | undefined): number | null {
   if (typeof sqft !== 'number' || !Number.isFinite(sqft) || sqft <= 0) {
     return null;
   }
-  return Math.round((sqft / SQFT_PER_ACRE) * 100) / 100;
+  const acres = Math.round((sqft / SQFT_PER_ACRE) * 100) / 100;
+  return acres > 0 ? acres : null;
 }
