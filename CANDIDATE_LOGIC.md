@@ -97,6 +97,11 @@ Reconciled and shipped:
   (the env-var-driven JSON file read) stays per-consumer — it does
   filesystem I/O, so hoisting it would add a `node:fs` dep and break
   the no-I/O invariant. It just produces the `communities` argument.
+  **0.3.2:** the marina dock detector's negative-lookahead place-name
+  guard was hoisted from redfin-mcp into canonical (strictly more
+  precise than the cohort's naked `/\bmarina\b/i`); it rejects address
+  suffixes ("Marina Bay", "Marina del Rey", "123 Marina Dr") while real
+  water-access prose still matches.
 - `normalizeAddressForCompare` + `collectAddressAlternates` (candidate
   **D**) — strict normalize-then-dedup pair surfacing cross-MLS address
   variants as `address_alternates`. Reconciled from the byte-identical
@@ -112,7 +117,11 @@ Reconciled and shipped:
   redfin, compass's richest coming-soon/active/off-market/expired set,
   homes) plus the `Unknown` sentinel (redfin) so unrecognised input
   never silently mis-buckets as `Listed`. Specificity-ordered matching
-  (Relisted before Listed, Pending/Contingent before Sold).
+  (Relisted before Listed, Pending/Contingent before Sold). **0.3.2:**
+  the `completed`→Sold synonym was hoisted from compass's old inline
+  ("Sale Completed" / "Transaction Completed"); a bare `temporar`→Delisted
+  synonym was evaluated and skipped ("Temporarily Off Market" already
+  maps via the existing `off market` substring).
 - `lastSold` (candidate **P**) — most-recent `Sold` event from a
   price-history series. Reconciled from zillow's `findLastSold`
   (`event`/`date`/`time`) and redfin's `lastSold`

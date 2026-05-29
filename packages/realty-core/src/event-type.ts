@@ -59,6 +59,7 @@ export type NormalizedEventType =
  * guessing.
  *
  * @example mapEventType('Sold (Public Records)') // 'Sold'
+ * @example mapEventType('Sale Completed')         // 'Sold'
  * @example mapEventType('Price Reduced')          // 'PriceChange'
  * @example mapEventType('Coming Soon')            // 'Listed'
  * @example mapEventType('Off Market')             // 'Delisted'
@@ -89,7 +90,10 @@ export function mapEventType(raw: string | undefined | null): NormalizedEventTyp
   if (s.includes('pending')) return 'Pending';
   if (s.includes('contingent')) return 'Contingent';
   // `\bclosed\b` (not bare substring) so "Foreclosed" doesn't match Sold.
-  if (s.includes('sold') || /\bclosed\b/.test(s)) return 'Sold';
+  // `completed` restores compass's old inline mapping ("Sale Completed" /
+  // "Transaction Completed" → Sold).
+  if (s.includes('sold') || /\bclosed\b/.test(s) || s.includes('completed'))
+    return 'Sold';
   // Price-movement synonyms (the full cohort union).
   if (
     s.includes('price change') ||
