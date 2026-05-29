@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/chrischall/realty-mcp/compare/v0.3.1...v0.4.0) (2026-05-29)
+
+
+### Features
+
+* **realty-core:** marina place-name guard + completed→Sold event synonym ([#18](https://github.com/chrischall/realty-mcp/issues/18)) ([8663433](https://github.com/chrischall/realty-mcp/commit/866343397f7d1ea64ed91cd070abfb35acd06f3d))
+
 ## [0.3.1](https://github.com/chrischall/realty-mcp/compare/v0.3.0...v0.3.1) (2026-05-29)
 
 
