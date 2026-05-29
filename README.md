@@ -15,7 +15,7 @@ implementation with shared tests.
 
 | Package | Status |
 |---|---|
-| `@chrischall/realty-core` | 0.1.x — address matching, suffix variants, locality alias map, free-text address parsing, shared `ResolverVia` / `ResolvedAddress` types. |
+| `@chrischall/realty-core` | Address matching, suffix variants, locality alias map, free-text address parsing + alternates; mortgage / affordability / rent-vs-buy calculators; feature extraction; tax, HOA, days-on-market, price-drop, last-sold and lot-size derivations; event-type mapping; hyperlink-formula, URL and geo (ZIP↔state) helpers; shared `ResolverVia` / `ResolvedAddress` types. |
 | `@chrischall/realty-meta` (planned) | Cross-source umbrella MCP. Depends on the five Pattern A packages. Not yet scaffolded. See `CANDIDATE_LOGIC.md`. |
 
 ## Commands
