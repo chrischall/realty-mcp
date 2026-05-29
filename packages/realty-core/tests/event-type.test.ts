@@ -41,6 +41,8 @@ describe('mapEventType', () => {
     expect(mapEventType('Sold (Public Records)')).toBe('Sold');
     expect(mapEventType('Sold (MLS)')).toBe('Sold');
     expect(mapEventType('Closed')).toBe('Sold');
+    expect(mapEventType('Sale Completed')).toBe('Sold');
+    expect(mapEventType('Completed')).toBe('Sold');
   });
 
   it('maps the Withdrawn synonyms', () => {

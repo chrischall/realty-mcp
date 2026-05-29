@@ -45,6 +45,19 @@ describe('extractFeatures', () => {
     expect(extractFeatures('No water access.', []).dock).toBeNull();
   });
 
+  it('does not false-match marina place-names (negative-lookahead guard)', () => {
+    // "marina" is commonly a place / street name, not a water-access
+    // feature. The negative-lookahead guard rejects the common
+    // place-name suffixes so addresses don't false-positive to 'marina'.
+    expect(extractFeatures('Just south of Marina Bay.', []).dock).toBeNull();
+    expect(extractFeatures('Marina del Rey area.', []).dock).toBeNull();
+    expect(extractFeatures('Home at 123 Marina Dr', []).dock).toBeNull();
+    // Real dock context still matches.
+    expect(
+      extractFeatures('deep-water marina with boat access', []).dock
+    ).toBe('marina');
+  });
+
   it('detects furnished levels', () => {
     expect(extractFeatures('Sold fully furnished.', []).furnished).toBe('fully');
     expect(extractFeatures('Offered turnkey for investors.', []).furnished).toBe(

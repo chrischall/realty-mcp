@@ -90,7 +90,14 @@ const FURNISHED_NEGOTIABLE_RE = /\bfurnishings (?:are )?negotiable\b/i;
 
 const DOCK_PRIVATE_RE = /\bprivate (?:boat )?dock\b/i;
 const DOCK_COMMUNITY_RE = /\b(?:community|shared) dock\b/i;
-const DOCK_MARINA_RE = /\bmarina\b/i;
+// Negative-lookahead place-name guard (ported from redfin-mcp — strictly
+// more precise than the cohort's naked `/\bmarina\b/i`). "marina" is a
+// common place / street name; the lookahead rejects the usual address
+// suffixes ("Marina Bay", "Marina del Rey", "123 Marina Dr") so addresses
+// don't false-positive to the 'marina' dock feature, while genuine
+// water-access prose ("deep-water marina with boat access") still matches.
+const DOCK_MARINA_RE =
+  /\bmarina\b(?!\s+(?:del|bay|dr|drive|blvd|boulevard|st|street|ave|avenue))/i;
 const DOCK_BOAT_SLIP_RE = /\bboat ?slip\b/i;
 
 /**
