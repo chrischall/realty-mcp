@@ -66,17 +66,24 @@ export function zipPlausibleStates(
  *
  * Returns `false` ONLY when we are CONFIDENT the result doesn't match —
  * the ZIP pattern-matched to a plausible-state set, at least one home
- * state was supplied, and NONE of them fall in that set. In every other
- * case (non-US/unparseable ZIP, no home states, at least one match) it
- * returns `true`, i.e. "no confident rejection" — so a `false` is always
- * actionable and never a false alarm on ambiguous data.
+ * state was supplied, and the in-state homes do NOT form a MAJORITY of
+ * the usable home states. In every other case (non-US/unparseable ZIP,
+ * no home states, an in-state majority) it returns `true`, i.e. "no
+ * confident rejection" — so a `false` is always actionable and never a
+ * false alarm on ambiguous data.
+ *
+ * A majority threshold (rather than the weaker "any single plausible
+ * home ⇒ matched") keeps the cross-continent guard firing on
+ * partially-poisoned result sets: a lone in-state listing can no longer
+ * rescue a result that is mostly in the wrong region.
  *
  * @param zip the queried ZIP (free-form; non-ZIP input → `true`)
  * @param homeStates the returned listings' state codes (nullish entries
  *   are ignored; comparison is case-insensitive)
  *
- * @example homesMatchZipState('28746', ['NC'])  // true
- * @example homesMatchZipState('28746', ['WA'])  // false  (the canonical bug)
+ * @example homesMatchZipState('28746', ['NC'])              // true
+ * @example homesMatchZipState('28746', ['WA'])              // false  (the canonical bug)
+ * @example homesMatchZipState('28746', ['WA', 'WA', 'NC'])  // false  (no in-state majority)
  */
 export function homesMatchZipState(
   zip: string | undefined | null,
@@ -84,14 +91,18 @@ export function homesMatchZipState(
 ): boolean {
   const plausible = zipPlausibleStates(zip);
   if (!plausible) return true; // can't pattern-match → don't reject
-  let sawAny = false;
+  let usable = 0;
+  let inState = 0;
   for (const s of homeStates) {
     if (!s) continue;
-    sawAny = true;
-    if (plausible.has(s.toUpperCase())) return true;
+    usable++;
+    if (plausible.has(s.toUpperCase())) inState++;
   }
-  // No usable home states → nothing to reject; otherwise a confident miss.
-  return !sawAny;
+  // No usable home states → nothing to reject. Otherwise require the
+  // in-state homes to be a strict majority of the usable set; a tie or
+  // worse is a confident cross-region miss.
+  if (usable === 0) return true;
+  return inState * 2 > usable;
 }
 
 /**
