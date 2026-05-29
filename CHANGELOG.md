@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/chrischall/realty-mcp/compare/v0.3.0...v0.3.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **core:** sqftToAcres guards sub-2dp lots to null so the documented "never 0" holds ([#16](https://github.com/chrischall/realty-mcp/issues/16)) ([4297082](https://github.com/chrischall/realty-mcp/commit/42970820ee879d195a68a64ac2b6cb1ab43b0580))
+
 ## [0.3.0](https://github.com/chrischall/realty-mcp/compare/v0.2.0...v0.3.0) (2026-05-28)
 
 
