@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LocalityAliasMap } from '../src/locality-alias.js';
 
 describe('LocalityAliasMap (default set)', () => {
@@ -58,5 +60,35 @@ describe('LocalityAliasMap.fromFile', () => {
       aliases: ['Other Name'],
       resolved: 'Other Name',
     });
+  });
+
+  // Regression: fromFile used `require('node:fs')` inside this ESM package
+  // ("type": "module"), which vitest's transform pipeline masks but which
+  // throws `ReferenceError: require is not defined` for any plain-ESM
+  // consumer of the published dist. Exercise the BUILT dist in a real
+  // plain-ESM node process — exactly what a consumer gets from npm.
+  it('works from the built ESM dist in a plain-ESM node process', () => {
+    const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const distFile = join(pkgDir, 'dist', 'locality-alias.js');
+    if (!existsSync(distFile)) {
+      execFileSync('npm', ['run', 'build'], { cwd: pkgDir, stdio: 'pipe' });
+    }
+    const aliasPath = join(tmpdir(), `locality-dist-${Date.now()}.json`);
+    writeFileSync(
+      aliasPath,
+      JSON.stringify({
+        entries: [
+          { city: 'Test City', state: 'CA', aliases: ['Other Name'], resolved: 'Other Name' },
+        ],
+      })
+    );
+    const script = [
+      `import { LocalityAliasMap } from ${JSON.stringify(pathToFileURL(distFile).href)};`,
+      `const map = LocalityAliasMap.fromFile(${JSON.stringify(aliasPath)});`,
+      `const r = map.lookup({ city: 'Test City', state: 'CA' });`,
+      `if (r.resolved !== 'Other Name') throw new Error('lookup failed: ' + JSON.stringify(r));`,
+    ].join('\n');
+    // Throws (non-zero exit) if the dist is not loadable/callable as plain ESM.
+    execFileSync(process.execPath, ['--input-type=module', '-e', script], { stdio: 'pipe' });
   });
 });

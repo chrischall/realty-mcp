@@ -13,6 +13,12 @@
  * 0.1.x publishes — the migration tracker issue lists each adopter.
  */
 
+// Top-level `node:` builtin import — equally bundleable (esbuild et al.
+// externalise node builtins), and unlike a bare `require('node:fs')` it
+// works in this ESM package ("type": "module"): `require` is not defined
+// in plain-ESM consumers of the published dist.
+import { readFileSync } from 'node:fs';
+
 export interface LocalityKey {
   city: string;
   state: string;
@@ -94,12 +100,7 @@ export class LocalityAliasMap {
    * ```
    */
   static fromFile(path: string): LocalityAliasMap {
-    // Lazy-require so the module stays bundleable in environments
-    // without `node:fs` (e.g. browser-side consumers — unlikely for
-    // realty MCPs, but cheap insurance).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('node:fs') as typeof import('node:fs');
-    const raw = fs.readFileSync(path, 'utf8');
+    const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as AliasFile;
     return new LocalityAliasMap(parsed.entries ?? []);
   }
