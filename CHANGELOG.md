@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/chrischall/realty-mcp/compare/v0.4.1...v0.4.2) (2026-06-09)
+
+
+### Bug Fixes
+
+* replace require('node:fs') with ESM import in LocalityAliasMap.fromFile ([#24](https://github.com/chrischall/realty-mcp/issues/24)) ([a672174](https://github.com/chrischall/realty-mcp/commit/a67217465bb333c5f18a5a1245cb24713968ba4e))
+
 ## [0.4.1](https://github.com/chrischall/realty-mcp/compare/v0.4.0...v0.4.1) (2026-05-29)
 
 
