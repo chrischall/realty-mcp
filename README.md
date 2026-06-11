@@ -1,5 +1,8 @@
 # realty-mcp
 
+[![CI](https://github.com/chrischall/realty-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/chrischall/realty-mcp/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Shared utilities currently duplicated across the realty cohort (zillow-mcp,
 redfin-mcp, compass-mcp, homes-mcp, onehome-mcp), plus the eventual
 meta-MCP for cross-source resolution (round-3 #10 / #11 — unified
