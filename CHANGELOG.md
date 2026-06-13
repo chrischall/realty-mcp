@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.3](https://github.com/chrischall/realty-mcp/compare/v0.4.2...v0.4.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* bot PRs bypass the CI gate unconditionally ([#28](https://github.com/chrischall/realty-mcp/issues/28)) ([2023521](https://github.com/chrischall/realty-mcp/commit/20235216bed55760d30e7b351eeffbcbaecb2eb9))
+
+
+### Documentation
+
+* declare MIT license and add README badges ([#30](https://github.com/chrischall/realty-mcp/issues/30)) ([e350b09](https://github.com/chrischall/realty-mcp/commit/e350b098f33479648461941bf744989d0b1a60a5))
+
 ## [0.4.2](https://github.com/chrischall/realty-mcp/compare/v0.4.1...v0.4.2) (2026-06-09)
 
 
