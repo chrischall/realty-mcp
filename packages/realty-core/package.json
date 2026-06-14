@@ -1,6 +1,6 @@
 {
   "name": "@chrischall/realty-core",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Pure, dependency-free realty-domain helpers — address tokenisation + match scoring, USPS street-suffix variants, locality alias remap, free-text address parsing + alternates; mortgage, affordability & rent-vs-buy calculators; feature extraction; tax/HOA/days-on-market/price-drop/last-sold/lot-size derivations; event-type mapping; hyperlink-formula, URL & geo (ZIP↔state) helpers. Hoisted from the realty MCP cohort.",
   "type": "module",
   "license": "MIT",
