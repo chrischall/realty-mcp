@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/chrischall/realty-mcp/compare/v0.4.3...v0.4.4) (2026-06-14)
+
+
+### Documentation
+
+* document Conventional Commit PR-title requirement for release-please ([#33](https://github.com/chrischall/realty-mcp/issues/33)) ([669a608](https://github.com/chrischall/realty-mcp/commit/669a6082424fda99b55f24e962edad4eb821b9e5))
+
 ## [0.4.3](https://github.com/chrischall/realty-mcp/compare/v0.4.2...v0.4.3) (2026-06-13)
 
 
