@@ -19,7 +19,27 @@ implementation with shared tests.
 | Package | Status |
 |---|---|
 | `@chrischall/realty-core` | Address matching, suffix variants, locality alias map, free-text address parsing + alternates; mortgage / affordability / rent-vs-buy calculators; feature extraction; tax, HOA, days-on-market, price-drop, last-sold and lot-size derivations; event-type mapping; hyperlink-formula, URL and geo (ZIP↔state) helpers; shared `ResolverVia` / `ResolvedAddress` types. |
-| `@chrischall/realty-meta` (planned) | Cross-source umbrella MCP. Depends on the five Pattern A packages. Not yet scaffolded. See `CANDIDATE_LOGIC.md`. |
+| `@chrischall/realty-meta` (planned) | Cross-source umbrella MCP. Depends on the portal packages below. Not yet scaffolded. See `CANDIDATE_LOGIC.md`. |
+
+## Portal sources
+
+The MCPs `realty-meta` will orchestrate. Each is its own repo; they
+consume `@chrischall/realty-core` (they are not dependencies *of* this
+monorepo). The realty-meta blocker is that most ship only as
+MCP-server binaries — to be composed they must also export their
+`*Client` + typed helpers as an ESM library.
+
+| Source | Market | Library surface |
+|---|---|---|
+| zillow-mcp, redfin-mcp, compass-mcp, homes-mcp, onehome-mcp | US (USD / sqft / ZIP) — Pattern A (fetchproxy) | bin-only today; library export pending the cohort migration |
+| [hemnet-mcp](https://github.com/chrischall/hemnet-mcp) | Sweden (SEK / m² / *slutpriser*) — direct anonymous GraphQL, no auth | ✅ ships as a library (`import { createHemnetClient, registerHemnetTools, formatListingCard, computeMarketStats } from 'hemnet-mcp'`) |
+
+hemnet-mcp is the first source that already meets the library-export
+contract, and it consumes `realty-core`'s portal-agnostic
+`addressMatch` for its `hemnet_get_by_address` resolution. Because it's
+a different market, it participates as a parallel portal source rather
+than in US cross-portal address de-duplication (a Swedish property has
+no Zillow/Redfin counterpart to reconcile against).
 
 ## Commands
 

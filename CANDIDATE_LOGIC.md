@@ -336,12 +336,14 @@ last_sold_candidates({ city, state, since, until })
 {
   "dependencies": {
     "@chrischall/realty-core":  "^0.1.0",
-    // The 5 portal MCPs published as libraries (not just bins):
+    // The US portal MCPs published as libraries (not just bins):
     "@chrischall/zillow-mcp":   "^0.5.0",
     "@chrischall/redfin-mcp":   "^0.5.0",
     "@chrischall/compass-mcp":  "^0.5.0",
     "@chrischall/homes-mcp":    "^0.5.0",
-    "@chrischall/onehome-mcp":  "^0.5.0"
+    "@chrischall/onehome-mcp":  "^0.5.0",
+    // Sweden (SEK / m² / slutpriser) — ALREADY a library (see below):
+    "hemnet-mcp":               "^0.1.0"
   }
 }
 ```
@@ -352,9 +354,26 @@ hoist needs each cohort package to expose its core `*Client` +
 typed helpers as ESM exports, or `realty-meta` will have to shell
 out to each MCP over stdio (workable but ugly).
 
-**Recommended:** wait until 0.1.0 publishes and the cohort migration
+**hemnet-mcp is the reference for what that export shape looks like.**
+It already ships the contract the US cohort still owes: a package
+`exports["."]` → library entry re-exporting `HemnetClient` /
+`createHemnetClient()`, the normalised record types
+(`ListingSummary`, `ListingDetail`, `SoldSummary`), the pure
+derivations (`computeMarketStats`, `calculateSwedishMortgage`, money /
+url helpers), and every `register*Tools` registrar — so realty-meta can
+either embed its tools or drive the client + `format*` directly. It
+also consumes `realty-core`'s portal-agnostic `addressMatch` in its
+`hemnet_get_by_address` (proving the core helpers travel to a non-US
+market). Because Hemnet is a different market, it's a **parallel portal
+source**: it feeds the meta-search / market-stats fan-out, but a Swedish
+listing has no US counterpart, so it does NOT participate in the
+cross-portal address de-duplication that reconciles the same property
+across zillow/redfin/etc.
+
+**Recommended:** wait until 0.1.0 publishes and the US cohort migration
 (linked tracker issue) is in flight before starting on `realty-meta`.
-The migration will surface the right shape for shared exports.
+The migration will surface the right shape for shared exports — model it
+on hemnet-mcp's `src/lib.ts`, which already got there.
 
 ## Additional candidates discovered via cohort scan (2026-05-28)
 
