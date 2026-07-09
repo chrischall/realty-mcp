@@ -15,6 +15,18 @@ by the root — see `.release-please-manifest.json`).
 `@chrischall/realty-meta` is planned, not yet scaffolded (see
 `CANDIDATE_LOGIC.md` and `README.md`).
 
+**Portal sources** (what realty-meta will orchestrate) are separate
+repos that *consume* `realty-core`; they are not dependencies of this
+monorepo and appear here only as references (the README "Portal sources"
+table + provenance notes in `realty-core` comments). The US cohort
+(zillow/redfin/compass/homes/onehome) is Pattern-A/fetchproxy and mostly
+bin-only today. **hemnet-mcp** (Sweden — SEK/m²/*slutpriser*, direct
+anonymous GraphQL) is the first source that already ships the ESM
+library surface realty-meta needs (`createHemnetClient`, `HemnetClient`,
+`format*`, `computeMarketStats`, `registerHemnetTools`) and consumes
+`realty-core`'s `addressMatch`. Being a different market, it's a
+parallel source, not a US cross-portal reconciliation peer.
+
 ## Workspaces
 
 Single published package today. The src is one file per helper under
