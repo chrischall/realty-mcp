@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.5](https://github.com/chrischall/realty-mcp/compare/v0.4.4...v0.4.5) (2026-07-13)
+
+
+### Documentation
+
+* register hemnet-mcp as a realty-meta portal source ([#37](https://github.com/chrischall/realty-mcp/issues/37)) ([fc163ce](https://github.com/chrischall/realty-mcp/commit/fc163cef64e36472173141c4b46699c3e9b2bba4))
+
 ## [0.4.4](https://github.com/chrischall/realty-mcp/compare/v0.4.3...v0.4.4) (2026-06-17)
 
 
