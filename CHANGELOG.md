@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.6](https://github.com/chrischall/realty-mcp/compare/v0.4.5...v0.4.6) (2026-07-19)
+
+
+### Documentation
+
+* replace duplicated fleet policy with a pointer ([#41](https://github.com/chrischall/realty-mcp/issues/41)) ([ec30f16](https://github.com/chrischall/realty-mcp/commit/ec30f169948321945197092de8af213daf248298))
+
 ## [0.4.5](https://github.com/chrischall/realty-mcp/compare/v0.4.4...v0.4.5) (2026-07-13)
 
 
