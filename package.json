@@ -15,7 +15,7 @@
     "release:core": "npm publish --workspace=@chrischall/realty-core"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
     "prettier": "^3.9.6",
     "typescript": "^7.0.2",
