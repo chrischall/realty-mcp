@@ -29,20 +29,21 @@
  *
  * Canonical policy:
  *
- *  1. Drop sub-3-char tokens (homes convergence) — absorbs USPS
- *     abbreviation drift without needing the SUFFIX_PAIRS table at
- *     this layer.
- *  2. Anchor on the leading numeric token (redfin's
- *     `scoreStreetMatch`) — street number MUST match exactly.
+ *  1. Drop sub-3-char non-numeric tokens (homes convergence) —
+ *     absorbs USPS abbreviation drift without needing the
+ *     SUFFIX_PAIRS table at this layer.
+ *  2. Anchor on every numeric token (redfin's `scoreStreetMatch`) —
+ *     the street number MUST match exactly, whether it leads
+ *     ("12 Main") or trails ("Storgatan 12").
  *  3. Score = |query ∩ candidate| / |query| over the kept tokens.
  *  4. Threshold > 0.5 (strict majority) — homes #50.
  */
 
 /**
  * Lowercase, strip punctuation, split on whitespace, drop tokens
- * shorter than 3 characters EXCEPT for the leading numeric token
- * (the street number — must always survive so the anchor below has
- * something to work with).
+ * shorter than 3 characters EXCEPT all-digit tokens (the street
+ * number — must always survive so the anchor below has something to
+ * work with, wherever the address format puts it).
  */
 export function tokenize(input: string): string[] {
   if (!input) return [];
@@ -53,12 +54,10 @@ export function tokenize(input: string): string[] {
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((t) => t.length > 0);
-  return raw.filter((t, i) => {
-    if (t.length >= 3) return true;
-    // Keep a short token if it's the first token and looks numeric —
-    // a short street number like "12 Main" must stay anchored.
-    return i === 0 && /^\d+$/.test(t);
-  });
+  // Keep every all-digit token, whatever its position: a short house
+  // number must stay anchored both in number-first ("12 Main") and
+  // number-last ("Storgatan 12", hemnet) formats (fleet-audit#214).
+  return raw.filter((t) => t.length >= 3 || /^\d+$/.test(t));
 }
 
 export interface AddressMatchResult {
@@ -78,7 +77,7 @@ export function addressMatch(
 
   const candTokens = new Set(tokenize(candidate));
 
-  // Anchor: every leading-numeric input token must appear verbatim in
+  // Anchor: every numeric-leading input token must appear verbatim in
   // the candidate. Guards "12 Main" silently matching inside "1234
   // Main Street" — the prefix-collision class homes #50 + compass #45
   // both addressed.
