@@ -86,7 +86,14 @@ const STREET_TYPES: ReadonlySet<string> = new Set([
 const NAME_ALIASES: ReadonlyMap<string, string> = new Map([
   ['mt', 'mount'], ['mtn', 'mountain'], ['pt', 'point'],
   ['hts', 'heights'], ['vw', 'view'], ['vly', 'valley'], ['ft', 'fort'],
+  // Only ever applied to name words (the type search starts after the
+  // first name word), so "St Charles Ave" ≡ "Saint Charles Ave".
+  ['st', 'saint'],
 ]);
+
+/** Generational suffixes portals disagree on ("Martin Luther King Jr
+ *  Blvd" vs "Martin Luther King Blvd"); not required to be covered. */
+const OPTIONAL_NAME_WORDS: ReadonlySet<string> = new Set(['jr', 'sr']);
 
 function rawTokens(input: string): string[] {
   return input
@@ -167,7 +174,8 @@ function streetParts(input: string): StreetParts | null {
  *    vouch for a conflicting one in the other; a side that omits a
  *    slot's directional is not a conflict;
  *  - every street-name word on either side must appear on the other
- *    ("Oak St" vs "Oak Hill Dr" rejects — a different street).
+ *    ("Oak St" vs "Oak Hill Dr" rejects — a different street), except
+ *    generational suffixes (Jr, Sr), which portals drop inconsistently.
  */
 function streetStructureConflicts(a: string, b: string): boolean {
   const pa = streetParts(a);
@@ -179,7 +187,7 @@ function streetStructureConflicts(a: string, b: string): boolean {
   const namesCovered = (p: StreetParts | null, other: string): boolean => {
     if (!p?.name) return true;
     const words = new Set(rawTokens(other).map(canonName));
-    return p.name.every((w) => words.has(w));
+    return p.name.every((w) => OPTIONAL_NAME_WORDS.has(w) || words.has(w));
   };
   return !namesCovered(pa, b) || !namesCovered(pb, a);
 }
