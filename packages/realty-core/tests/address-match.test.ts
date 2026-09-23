@@ -224,6 +224,11 @@ describe('addressMatch', () => {
   });
 
   describe('extra street-name words (fleet-audit#215)', () => {
+    it('treats a US route prefix as optional ("US Hwy 50" vs "Hwy 50")', () => {
+      expect(addressMatch('123 US Hwy 50', '123 Hwy 50').matched).toBe(true);
+      expect(addressMatch('123 Hwy 50', '123 US Hwy 50').matched).toBe(true);
+    });
+
     it('rejects a candidate whose street name has an extra word', () => {
       expect(addressMatch('123 Oak St', '123 Oak Hill Dr')).toEqual({
         matched: false,

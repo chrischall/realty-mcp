@@ -91,9 +91,10 @@ const NAME_ALIASES: ReadonlyMap<string, string> = new Map([
   ['st', 'saint'],
 ]);
 
-/** Generational suffixes portals disagree on ("Martin Luther King Jr
- *  Blvd" vs "Martin Luther King Blvd"); not required to be covered. */
-const OPTIONAL_NAME_WORDS: ReadonlySet<string> = new Set(['jr', 'sr']);
+/** Words portals drop inconsistently, so neither side must cover them:
+ *  generational suffixes ("Martin Luther King Jr Blvd" vs "Martin Luther
+ *  King Blvd") and the US route prefix ("US Hwy 50" vs "Hwy 50"). */
+const OPTIONAL_NAME_WORDS: ReadonlySet<string> = new Set(['jr', 'sr', 'us']);
 
 function rawTokens(input: string): string[] {
   return input
