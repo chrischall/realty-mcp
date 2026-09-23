@@ -103,6 +103,78 @@ describe('addressMatch', () => {
     });
   });
 
+  describe('directionals (fleet-audit#215)', () => {
+    it('rejects a conflicting prefix directional', () => {
+      expect(addressMatch('123 N Main St', '123 S Main St')).toEqual({
+        matched: false,
+        score: 0,
+      });
+    });
+
+    it('rejects a conflicting suffix directional', () => {
+      expect(addressMatch('123 Main St NW', '123 Main St SE').matched).toBe(
+        false
+      );
+    });
+
+    it('treats spelled-out and abbreviated directionals as equal', () => {
+      expect(addressMatch('123 North Main St', '123 S Main St').matched).toBe(
+        false
+      );
+      expect(
+        addressMatch('123 N Main St', '123 North Main Street').matched
+      ).toBe(true);
+    });
+
+    it('accepts a candidate that omits the directional', () => {
+      expect(addressMatch('123 N Main St', '123 Main St').matched).toBe(true);
+    });
+
+    it('reads a directional-looking word before the street type as the name', () => {
+      expect(addressMatch('123 North St', '123 North Street').matched).toBe(
+        true
+      );
+    });
+
+    it('does not read a trailing state code as a directional', () => {
+      expect(
+        addressMatch('123 Main St', '123 Main St Omaha NE 68102').matched
+      ).toBe(true);
+    });
+  });
+
+  describe('extra street-name words (fleet-audit#215)', () => {
+    it('rejects a candidate whose street name has an extra word', () => {
+      expect(addressMatch('123 Oak St', '123 Oak Hill Dr')).toEqual({
+        matched: false,
+        score: 0,
+      });
+    });
+
+    it('rejects symmetrically (candidate-first callers, e.g. redfin autocomplete)', () => {
+      expect(addressMatch('123 Oak Hill Dr', '123 Oak St').matched).toBe(false);
+      expect(addressMatch('158 Raven Hill Blvd', '158 Raven Blvd').matched).toBe(
+        false
+      );
+    });
+
+    it('ignores locality noise after the street type', () => {
+      expect(
+        addressMatch('158 Raven Blvd', '158 Raven Blvd Lake Lure NC 28746')
+          .matched
+      ).toBe(true);
+      expect(
+        addressMatch('123 Oak St', '123 Oak St, Charlotte, NC').matched
+      ).toBe(true);
+    });
+
+    it('normalises name abbreviations (Mt ↔ Mount)', () => {
+      expect(
+        addressMatch('126 Mt Mitchell Rd', '126 Mount Mitchell Road').matched
+      ).toBe(true);
+    });
+  });
+
   it('handles empty input as no match', () => {
     const r = addressMatch('', '126 Sleeping Bear Lane');
     expect(r.matched).toBe(false);
