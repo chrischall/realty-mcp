@@ -100,9 +100,17 @@ function rawTokens(input: string): string[] {
 
 const canonName = (t: string): string => NAME_ALIASES.get(t) ?? t;
 
+/** Unit designators that may follow a suffix directional ("Main St NW Apt 4"). */
+const UNIT_DESIGNATORS: ReadonlySet<string> = new Set([
+  'apt', 'apartment', 'unit', 'ste', 'suite', 'bldg', 'building',
+  'lot', 'fl', 'floor', 'rm', 'room', 'spc', 'space', 'trlr', 'dept',
+]);
+
 interface StreetParts {
-  /** Canonical directionals (prefix + suffix) on the street line. */
-  directionals: Set<string>;
+  /** Canonical prefix directional ("123 N Main St"), if any. */
+  prefix: string | null;
+  /** Canonical suffix directional ("123 Main St NW"), if any. */
+  suffix: string | null;
   /** Street-name words between house number (+ prefix directional)
    *  and the thoroughfare type; null when no type delimits them. */
   name: string[] | null;
@@ -110,20 +118,25 @@ interface StreetParts {
 
 /**
  * Parse a number-first street line ("123 N Oak Hill Dr SW, …") into
- * its directionals and name words. Only the text before the first
- * comma is considered, and only positions where a directional can
- * occur (right after the house number, right after the type) — so a
- * trailing state code like "NE" is never read as one. Returns null for
- * number-last formats ("Storgatan 12"), which carry no such structure.
+ * its prefix/suffix directionals and name words. Only the text before
+ * the first comma is considered. A prefix is the word right after the
+ * house number. A word right after the type counts as a suffix only
+ * when it ENDS the street segment or is followed by a unit designator
+ * (or a bare unit number) — otherwise it is the start of comma-less
+ * locality text, as in "Main St North Charleston SC" or "Main St West
+ * Palm Beach FL" (onehome's listingHaystack, redfin's row.name). A
+ * trailing state code like "NE" is likewise never read as one.
+ * Returns null for number-last formats ("Storgatan 12"), which carry
+ * no such structure.
  */
 function streetParts(input: string): StreetParts | null {
   const raw = rawTokens(input.split(',')[0] ?? '');
   if (raw.length < 2 || !/^\d/.test(raw[0]!)) return null;
-  const directionals = new Set<string>();
+  let prefix: string | null = null;
   let i = 1;
   const pre = DIRECTIONALS.get(raw[1]!);
   if (pre && raw[2] !== undefined && !STREET_TYPES.has(raw[2])) {
-    directionals.add(pre);
+    prefix = pre;
     i = 2;
   }
   // The type is the first STREET_TYPES word after at least one name word.
@@ -134,26 +147,34 @@ function streetParts(input: string): StreetParts | null {
       break;
     }
   }
-  if (k < 0) return { directionals, name: null };
+  if (k < 0) return { prefix, suffix: null, name: null };
+  let suffix: string | null = null;
   const post = raw[k + 1] !== undefined ? DIRECTIONALS.get(raw[k + 1]!) : undefined;
-  if (post) directionals.add(post);
-  return { directionals, name: raw.slice(i, k).map(canonName) };
+  if (post) {
+    const next = raw[k + 2];
+    const endsSegment =
+      next === undefined || UNIT_DESIGNATORS.has(next) || /^\d+[a-z]?$/.test(next);
+    if (endsSegment) suffix = post;
+  }
+  return { prefix, suffix, name: raw.slice(i, k).map(canonName) };
 }
 
 /**
  * Street-structure gate (fleet-audit#215), applied symmetrically so it
  * holds for callers that pass the candidate first:
- *  - conflicting directionals ("N Main" vs "S Main") reject; a side
- *    that omits the directional is not a conflict;
+ *  - conflicting directionals reject, compared slot by slot (prefix vs
+ *    prefix, suffix vs suffix) so a directional in one slot can never
+ *    vouch for a conflicting one in the other; a side that omits a
+ *    slot's directional is not a conflict;
  *  - every street-name word on either side must appear on the other
  *    ("Oak St" vs "Oak Hill Dr" rejects — a different street).
  */
 function streetStructureConflicts(a: string, b: string): boolean {
   const pa = streetParts(a);
   const pb = streetParts(b);
-  if (pa && pb && pa.directionals.size > 0 && pb.directionals.size > 0) {
-    const shared = [...pa.directionals].some((d) => pb.directionals.has(d));
-    if (!shared) return true;
+  if (pa && pb) {
+    if (pa.prefix && pb.prefix && pa.prefix !== pb.prefix) return true;
+    if (pa.suffix && pb.suffix && pa.suffix !== pb.suffix) return true;
   }
   const namesCovered = (p: StreetParts | null, other: string): boolean => {
     if (!p?.name) return true;
