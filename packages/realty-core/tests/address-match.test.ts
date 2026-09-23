@@ -141,6 +141,65 @@ describe('addressMatch', () => {
         addressMatch('123 Main St', '123 Main St Omaha NE 68102').matched
       ).toBe(true);
     });
+
+    describe('city names that start with a direction word', () => {
+      it('does not let a no-comma city name satisfy a prefix conflict (onehome haystack)', () => {
+        const haystack =
+          '123 s main st north charleston sc 29405 123 S Main St, North Charleston, SC 29405';
+        expect(
+          addressMatch('123 N Main St, North Charleston, SC', haystack)
+        ).toEqual({ matched: false, score: 0 });
+      });
+
+      it('still matches the right parcel in a no-comma haystack', () => {
+        const haystack =
+          '123 n main st north charleston sc 29405 123 N Main St, North Charleston, SC 29405';
+        expect(
+          addressMatch('123 N Main St, North Charleston, SC', haystack).matched
+        ).toBe(true);
+      });
+
+      it('does not read a no-comma city as a suffix directional (redfin row.name first)', () => {
+        // 'West' begins the locality, not a suffix — no conflict with E.
+        expect(
+          addressMatch('123 Main St E', '123 Main St West Palm Beach FL')
+        ).toEqual({ matched: true, score: 1 });
+        expect(
+          addressMatch('123 Main St E', '123 Main St West Palm Beach FL 33401')
+            .matched
+        ).toBe(true);
+      });
+
+      it('handles other direction-word cities in no-comma queries', () => {
+        expect(
+          addressMatch('500 Oak Ave South Bend IN', '500 Oak Ave N').matched
+        ).toBe(true);
+        expect(
+          addressMatch('500 Oak Ave East Lansing MI', '500 Oak Ave W, East Lansing, MI')
+            .matched
+        ).toBe(true);
+      });
+    });
+
+    it('compares prefix with prefix and suffix with suffix', () => {
+      // Prefix N vs suffix N on the other side is not overlap evidence
+      // that rescues a conflicting prefix.
+      expect(
+        addressMatch('123 N Main St', '123 S Main St N').matched
+      ).toBe(false);
+      expect(
+        addressMatch('123 N Main St NW', '123 N Main St SE').matched
+      ).toBe(false);
+    });
+
+    it('reads a suffix directional followed by a unit designator', () => {
+      expect(
+        addressMatch('123 Main St NW Apt 4', '123 Main St SE Apt 4').matched
+      ).toBe(false);
+      expect(
+        addressMatch('123 Main St NW Apt 4', '123 Main St NW Apt 4').matched
+      ).toBe(true);
+    });
   });
 
   describe('extra street-name words (fleet-audit#215)', () => {
