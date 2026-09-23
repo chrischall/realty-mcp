@@ -192,6 +192,27 @@ describe('addressMatch', () => {
       ).toBe(false);
     });
 
+    it('reads a quadrant suffix (NE/NW/SE/SW) before comma-less city text (onehome haystack)', () => {
+      // DC-style quadrants never begin a city name, so they count as a
+      // suffix even when locality text follows without a comma.
+      expect(
+        addressMatch(
+          '123 Main St NW',
+          '123 main st se washington dc 20001 123 Main St SE, Washington, DC 20001'
+        )
+      ).toEqual({ matched: false, score: 0 });
+      expect(
+        addressMatch(
+          '123 Main St NW',
+          '123 main st nw washington dc 20001 123 Main St NW, Washington, DC 20001'
+        ).matched
+      ).toBe(true);
+      expect(
+        addressMatch('123 Main St NW, Washington, DC', '123 Main St SE Washington DC')
+          .matched
+      ).toBe(false);
+    });
+
     it('reads a suffix directional followed by a unit designator', () => {
       expect(
         addressMatch('123 Main St NW Apt 4', '123 Main St SE Apt 4').matched

@@ -113,6 +113,9 @@ const UNIT_DESIGNATORS: ReadonlySet<string> = new Set([
   'lot', 'fl', 'floor', 'rm', 'room', 'spc', 'space', 'trlr', 'dept',
 ]);
 
+/** Two-letter quadrant abbreviations, unambiguous as a suffix directional. */
+const QUADRANT_ABBRS: ReadonlySet<string> = new Set(['ne', 'nw', 'se', 'sw']);
+
 interface StreetParts {
   /** Canonical prefix directional ("123 N Main St"), if any. */
   prefix: string | null;
@@ -131,8 +134,10 @@ interface StreetParts {
  * when it ENDS the street segment or is followed by a unit designator
  * (or a bare unit number) — otherwise it is the start of comma-less
  * locality text, as in "Main St North Charleston SC" or "Main St West
- * Palm Beach FL" (onehome's listingHaystack, redfin's row.name). A
- * trailing state code like "NE" is likewise never read as one.
+ * Palm Beach FL" (onehome's listingHaystack, redfin's row.name). The
+ * exception is an abbreviated quadrant (NE/NW/SE/SW), which no city
+ * name starts with, so "Main St SE Washington DC" still carries its
+ * suffix. A state code like "NE" after a city is never read as one.
  * Returns null for number-last formats ("Storgatan 12"), which carry
  * no such structure.
  */
@@ -161,7 +166,9 @@ function streetParts(input: string): StreetParts | null {
     const next = raw[k + 2];
     const endsSegment =
       next === undefined || UNIT_DESIGNATORS.has(next) || /^\d+[a-z]?$/.test(next);
-    if (endsSegment) suffix = post;
+    // An abbreviated quadrant (NE/NW/SE/SW, as in DC) never begins a
+    // city name, so it is a suffix even before comma-less locality text.
+    if (endsSegment || QUADRANT_ABBRS.has(raw[k + 1]!)) suffix = post;
   }
   return { prefix, suffix, name: raw.slice(i, k).map(canonName) };
 }
