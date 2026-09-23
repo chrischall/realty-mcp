@@ -232,6 +232,38 @@ describe('addressMatch', () => {
         addressMatch('126 Mt Mitchell Rd', '126 Mount Mitchell Road').matched
       ).toBe(true);
     });
+
+    it('normalises St ↔ Saint as a name word', () => {
+      expect(
+        addressMatch('123 St Charles Ave', '123 Saint Charles Ave').matched
+      ).toBe(true);
+      expect(
+        addressMatch('123 Saint Charles Ave', '123 St Charles Ave, New Orleans, LA')
+          .matched
+      ).toBe(true);
+    });
+
+    it('treats generational suffixes (Jr, Sr) as optional name words', () => {
+      expect(
+        addressMatch('123 Martin Luther King Jr Blvd', '123 Martin Luther King Blvd')
+          .matched
+      ).toBe(true);
+      expect(
+        addressMatch(
+          '123 Martin Luther King Blvd',
+          '123 Martin Luther King Jr Blvd, Charlotte, NC'
+        ).matched
+      ).toBe(true);
+      expect(
+        addressMatch('45 Hank Williams Sr Way', '45 Hank Williams Way').matched
+      ).toBe(true);
+    });
+
+    it('still rejects a different street that differs by more than Jr/Sr', () => {
+      expect(
+        addressMatch('123 Martin Luther King Jr Blvd', '123 King Blvd').matched
+      ).toBe(false);
+    });
   });
 
   it('handles empty input as no match', () => {
