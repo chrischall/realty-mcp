@@ -33,6 +33,15 @@ describe('tokenize', () => {
     ]);
   });
 
+  it('keeps short all-digit tokens in any position (number-last formats, fleet-audit#214)', () => {
+    expect(tokenize('Storgatan 12, Stockholm')).toEqual([
+      'storgatan',
+      '12',
+      'stockholm',
+    ]);
+    expect(tokenize('Gäddstigen 1')).toEqual(['gaddstigen', '1']);
+  });
+
   it('returns empty for empty/whitespace input', () => {
     expect(tokenize('')).toEqual([]);
     expect(tokenize('   ')).toEqual([]);
@@ -68,6 +77,30 @@ describe('addressMatch', () => {
     const r = addressMatch('126 Aaaa Bbbb Cccc', '126 Aaaa');
     expect(r.matched).toBe(false);
     expect(r.score).toBeCloseTo(0.5);
+  });
+
+  describe('number-last addresses (hemnet, fleet-audit#214)', () => {
+    it('rejects a different house number on the same street', () => {
+      expect(
+        addressMatch('Storgatan 12, Stockholm', 'Storgatan 14, Stockholm')
+      ).toEqual({ matched: false, score: 0 });
+      expect(addressMatch('Gäddstigen 1', 'Gäddstigen 3')).toEqual({
+        matched: false,
+        score: 0,
+      });
+    });
+
+    it('rejects a prefix-colliding house number', () => {
+      expect(addressMatch('Storgatan 12', 'Storgatan 125').matched).toBe(
+        false
+      );
+    });
+
+    it('still matches the same number-last address', () => {
+      const r = addressMatch('Storgatan 12, Stockholm', 'Storgatan 12');
+      expect(r.matched).toBe(true);
+      expect(addressMatch('Gäddstigen 1', 'Gäddstigen 1').score).toBe(1);
+    });
   });
 
   it('handles empty input as no match', () => {
