@@ -32,6 +32,34 @@ describe('expandSuffix', () => {
     expect(variants).toContain('268 Mallard Road, Lake Lure NC 28746');
   });
 
+  it('contracts Parkway to the USPS Pkwy, not the Pkw alias (fleet-audit#216)', () => {
+    expect(expandSuffix('100 Blue Ridge Parkway')).toEqual([
+      '100 Blue Ridge Pkwy',
+    ]);
+  });
+
+  it('still expands the Pkw alias to Parkway', () => {
+    expect(expandSuffix('100 Blue Ridge Pkw')).toEqual([
+      '100 Blue Ridge Parkway',
+    ]);
+  });
+
+  it('contracts Creek to the USPS Crk (fleet-audit#216)', () => {
+    expect(expandSuffix('5 Mill Creek')).toEqual(['5 Mill Crk']);
+    expect(expandSuffix('5 Mill Crk')).toEqual(['5 Mill Creek']);
+  });
+
+  it('expands the ambiguous Cr to both Circle and Creek (fleet-audit#216)', () => {
+    expect(expandSuffix('5 Oak Cr, Lake Lure NC')).toEqual([
+      '5 Oak Circle, Lake Lure NC',
+      '5 Oak Creek, Lake Lure NC',
+    ]);
+  });
+
+  it('contracts Circle to Cir, never the ambiguous Cr', () => {
+    expect(expandSuffix('5 Oak Circle')).toEqual(['5 Oak Cir']);
+  });
+
   it('returns empty when there is no known suffix', () => {
     expect(expandSuffix('268 Mallard')).toEqual([]);
   });
