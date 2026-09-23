@@ -40,16 +40,35 @@ export const SUFFIX_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['Vly', 'Valley'],
   ['Hts', 'Heights'],
   ['Mt', 'Mount'],
+  ['Crk', 'Creek'],
+];
+
+/**
+ * Alias-only pairs: non-USPS spellings seen in the wild. They expand to
+ * the full form but are never a contraction target, and they are kept
+ * OUT of the exported SUFFIX_PAIRS so consumers that fold that table
+ * full -> abbr (compass-mcp's SUFFIX_FOLD, last-write-wins) keep folding
+ * Parkway -> Pkwy, Circle -> Cir and Creek -> Crk (fleet-audit#216).
+ * "Cr" is ambiguous — informal for Circle, sometimes Creek — so it
+ * expands to both.
+ */
+const ALIAS_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['Pkw', 'Parkway'],
+  ['Cr', 'Circle'],
   ['Cr', 'Creek'],
 ];
 
-const ABBR_TO_FULL = new Map<string, string>();
+const ABBR_TO_FULL = new Map<string, string[]>();
 const FULL_TO_ABBR = new Map<string, string>();
-for (const [abbr, full] of SUFFIX_PAIRS) {
+for (const [abbr, full] of [...SUFFIX_PAIRS, ...ALIAS_PAIRS]) {
   if (abbr === full) continue;
-  ABBR_TO_FULL.set(abbr.toLowerCase(), full);
-  FULL_TO_ABBR.set(full.toLowerCase(), abbr);
+  const a = abbr.toLowerCase();
+  const f = full.toLowerCase();
+  const fulls = ABBR_TO_FULL.get(a) ?? [];
+  if (!fulls.includes(full)) fulls.push(full);
+  ABBR_TO_FULL.set(a, fulls);
+  // First write wins: every canonical USPS pair precedes the aliases.
+  if (!FULL_TO_ABBR.has(f)) FULL_TO_ABBR.set(f, abbr);
 }
 
 function splitStreetFromRemainder(address: string): {
@@ -78,31 +97,32 @@ function casePreserve(original: string, swap: string): string {
     : swap.toLowerCase();
 }
 
-function swapSuffixVariant(street: string): string | null {
+function swapSuffixVariants(street: string): string[] {
   const trimmed = street.trimEnd();
   const lastSpace = trimmed.lastIndexOf(' ');
-  if (lastSpace < 0) return null;
+  if (lastSpace < 0) return [];
   const head = trimmed.slice(0, lastSpace);
   const lastToken = trimmed.slice(lastSpace + 1);
   const { core, trailingPunct } = partsForToken(lastToken);
   const lower = core.toLowerCase();
-  const swap = ABBR_TO_FULL.get(lower) ?? FULL_TO_ABBR.get(lower);
-  if (!swap) return null;
-  return `${head} ${casePreserve(core, swap)}${trailingPunct}`;
+  const abbr = FULL_TO_ABBR.get(lower);
+  const swaps = ABBR_TO_FULL.get(lower) ?? (abbr ? [abbr] : []);
+  return swaps.map(
+    (swap) => `${head} ${casePreserve(core, swap)}${trailingPunct}`
+  );
 }
 
 /**
  * Generate suffix variants of the input. Each variant swaps the
- * trailing street-suffix between its abbreviated and full form.
+ * trailing street-suffix between its abbreviated and full form. An
+ * ambiguous abbreviation ("Cr") yields one variant per expansion.
  * Returns ONLY the alternates — the caller is expected to also try
  * the original. Empty when no recognised suffix.
  */
 export function expandSuffix(address: string): string[] {
   if (!address) return [];
   const { street, remainder } = splitStreetFromRemainder(address);
-  const swapped = swapSuffixVariant(street);
-  if (!swapped) return [];
-  return [`${swapped}${remainder}`];
+  return swapSuffixVariants(street).map((s) => `${s}${remainder}`);
 }
 
 /**

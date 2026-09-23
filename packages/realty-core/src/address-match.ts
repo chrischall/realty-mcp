@@ -29,36 +29,175 @@
  *
  * Canonical policy:
  *
- *  1. Drop sub-3-char tokens (homes convergence) — absorbs USPS
- *     abbreviation drift without needing the SUFFIX_PAIRS table at
- *     this layer.
- *  2. Anchor on the leading numeric token (redfin's
- *     `scoreStreetMatch`) — street number MUST match exactly.
- *  3. Score = |query ∩ candidate| / |query| over the kept tokens.
- *  4. Threshold > 0.5 (strict majority) — homes #50.
+ *  1. Drop sub-3-char non-numeric tokens (homes convergence) —
+ *     absorbs USPS abbreviation drift without needing the
+ *     SUFFIX_PAIRS table at this layer.
+ *  2. Anchor on every numeric token (redfin's `scoreStreetMatch`) —
+ *     the street number MUST match exactly, whether it leads
+ *     ("12 Main") or trails ("Storgatan 12").
+ *  3. Reject conflicting directionals and street names with words
+ *     the other side lacks, in both directions (fleet-audit#215).
+ *  4. Score = |query ∩ candidate| / |query| over the kept tokens.
+ *  5. Threshold > 0.5 (strict majority) — homes #50.
  */
 
 /**
  * Lowercase, strip punctuation, split on whitespace, drop tokens
- * shorter than 3 characters EXCEPT for the leading numeric token
- * (the street number — must always survive so the anchor below has
- * something to work with).
+ * shorter than 3 characters EXCEPT all-digit tokens (the street
+ * number — must always survive so the anchor below has something to
+ * work with, wherever the address format puts it).
  */
 export function tokenize(input: string): string[] {
   if (!input) return [];
-  const raw = input
+  const raw = rawTokens(input);
+  // Keep every all-digit token, whatever its position: a short house
+  // number must stay anchored both in number-first ("12 Main") and
+  // number-last ("Storgatan 12", hemnet) formats (fleet-audit#214).
+  return raw.filter((t) => t.length >= 3 || /^\d+$/.test(t));
+}
+
+/** Directional words → canonical abbreviation. */
+const DIRECTIONALS: ReadonlyMap<string, string> = new Map([
+  ['n', 'n'], ['north', 'n'],
+  ['s', 's'], ['south', 's'],
+  ['e', 'e'], ['east', 'e'],
+  ['w', 'w'], ['west', 'w'],
+  ['ne', 'ne'], ['northeast', 'ne'],
+  ['nw', 'nw'], ['northwest', 'nw'],
+  ['se', 'se'], ['southeast', 'se'],
+  ['sw', 'sw'], ['southwest', 'sw'],
+]);
+
+/**
+ * Thoroughfare types (USPS full + abbreviated forms) that terminate a
+ * street name. Name-forming words that also appear in SUFFIX_PAIRS
+ * (Mount, View, Valley, Creek, …) are deliberately absent — they are
+ * as often part of the name ("Valley View Dr") as its type.
+ */
+const STREET_TYPES: ReadonlySet<string> = new Set([
+  'road', 'rd', 'lane', 'ln', 'drive', 'dr', 'court', 'ct',
+  'boulevard', 'blvd', 'circle', 'cir', 'highway', 'hwy',
+  'parkway', 'pkwy', 'pkw', 'avenue', 'ave', 'street', 'st',
+  'place', 'pl', 'trail', 'trl', 'terrace', 'ter', 'alley', 'aly',
+  'way', 'loop', 'crossing', 'xing', 'square', 'sq',
+]);
+
+/** Abbreviated name words → full form, so "Mt Mitchell" ≡ "Mount Mitchell". */
+const NAME_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['mt', 'mount'], ['mtn', 'mountain'], ['pt', 'point'],
+  ['hts', 'heights'], ['vw', 'view'], ['vly', 'valley'], ['ft', 'fort'],
+  // Only ever applied to name words (the type search starts after the
+  // first name word), so "St Charles Ave" ≡ "Saint Charles Ave".
+  ['st', 'saint'],
+]);
+
+/** Words portals drop inconsistently, so neither side must cover them:
+ *  generational suffixes ("Martin Luther King Jr Blvd" vs "Martin Luther
+ *  King Blvd") and the US route prefix ("US Hwy 50" vs "Hwy 50"). */
+const OPTIONAL_NAME_WORDS: ReadonlySet<string> = new Set(['jr', 'sr', 'us']);
+
+function rawTokens(input: string): string[] {
+  return input
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((t) => t.length > 0);
-  return raw.filter((t, i) => {
-    if (t.length >= 3) return true;
-    // Keep a short token if it's the first token and looks numeric —
-    // a short street number like "12 Main" must stay anchored.
-    return i === 0 && /^\d+$/.test(t);
-  });
+}
+
+const canonName = (t: string): string => NAME_ALIASES.get(t) ?? t;
+
+/** Unit designators that may follow a suffix directional ("Main St NW Apt 4"). */
+const UNIT_DESIGNATORS: ReadonlySet<string> = new Set([
+  'apt', 'apartment', 'unit', 'ste', 'suite', 'bldg', 'building',
+  'lot', 'fl', 'floor', 'rm', 'room', 'spc', 'space', 'trlr', 'dept',
+]);
+
+/** Two-letter quadrant abbreviations, unambiguous as a suffix directional. */
+const QUADRANT_ABBRS: ReadonlySet<string> = new Set(['ne', 'nw', 'se', 'sw']);
+
+interface StreetParts {
+  /** Canonical prefix directional ("123 N Main St"), if any. */
+  prefix: string | null;
+  /** Canonical suffix directional ("123 Main St NW"), if any. */
+  suffix: string | null;
+  /** Street-name words between house number (+ prefix directional)
+   *  and the thoroughfare type; null when no type delimits them. */
+  name: string[] | null;
+}
+
+/**
+ * Parse a number-first street line ("123 N Oak Hill Dr SW, …") into
+ * its prefix/suffix directionals and name words. Only the text before
+ * the first comma is considered. A prefix is the word right after the
+ * house number. A word right after the type counts as a suffix only
+ * when it ENDS the street segment or is followed by a unit designator
+ * (or a bare unit number) — otherwise it is the start of comma-less
+ * locality text, as in "Main St North Charleston SC" or "Main St West
+ * Palm Beach FL" (onehome's listingHaystack, redfin's row.name). The
+ * exception is an abbreviated quadrant (NE/NW/SE/SW), which no city
+ * name starts with, so "Main St SE Washington DC" still carries its
+ * suffix. A state code like "NE" after a city is never read as one.
+ * Returns null for number-last formats ("Storgatan 12"), which carry
+ * no such structure.
+ */
+function streetParts(input: string): StreetParts | null {
+  const raw = rawTokens(input.split(',')[0] ?? '');
+  if (raw.length < 2 || !/^\d/.test(raw[0]!)) return null;
+  let prefix: string | null = null;
+  let i = 1;
+  const pre = DIRECTIONALS.get(raw[1]!);
+  if (pre && raw[2] !== undefined && !STREET_TYPES.has(raw[2])) {
+    prefix = pre;
+    i = 2;
+  }
+  // The type is the first STREET_TYPES word after at least one name word.
+  let k = -1;
+  for (let j = i + 1; j < raw.length; j++) {
+    if (STREET_TYPES.has(raw[j]!)) {
+      k = j;
+      break;
+    }
+  }
+  if (k < 0) return { prefix, suffix: null, name: null };
+  let suffix: string | null = null;
+  const post = raw[k + 1] !== undefined ? DIRECTIONALS.get(raw[k + 1]!) : undefined;
+  if (post) {
+    const next = raw[k + 2];
+    const endsSegment =
+      next === undefined || UNIT_DESIGNATORS.has(next) || /^\d+[a-z]?$/.test(next);
+    // An abbreviated quadrant (NE/NW/SE/SW, as in DC) never begins a
+    // city name, so it is a suffix even before comma-less locality text.
+    if (endsSegment || QUADRANT_ABBRS.has(raw[k + 1]!)) suffix = post;
+  }
+  return { prefix, suffix, name: raw.slice(i, k).map(canonName) };
+}
+
+/**
+ * Street-structure gate (fleet-audit#215), applied symmetrically so it
+ * holds for callers that pass the candidate first:
+ *  - conflicting directionals reject, compared slot by slot (prefix vs
+ *    prefix, suffix vs suffix) so a directional in one slot can never
+ *    vouch for a conflicting one in the other; a side that omits a
+ *    slot's directional is not a conflict;
+ *  - every street-name word on either side must appear on the other
+ *    ("Oak St" vs "Oak Hill Dr" rejects — a different street), except
+ *    generational suffixes (Jr, Sr), which portals drop inconsistently.
+ */
+function streetStructureConflicts(a: string, b: string): boolean {
+  const pa = streetParts(a);
+  const pb = streetParts(b);
+  if (pa && pb) {
+    if (pa.prefix && pb.prefix && pa.prefix !== pb.prefix) return true;
+    if (pa.suffix && pb.suffix && pa.suffix !== pb.suffix) return true;
+  }
+  const namesCovered = (p: StreetParts | null, other: string): boolean => {
+    if (!p?.name) return true;
+    const words = new Set(rawTokens(other).map(canonName));
+    return p.name.every((w) => OPTIONAL_NAME_WORDS.has(w) || words.has(w));
+  };
+  return !namesCovered(pa, b) || !namesCovered(pb, a);
 }
 
 export interface AddressMatchResult {
@@ -78,7 +217,7 @@ export function addressMatch(
 
   const candTokens = new Set(tokenize(candidate));
 
-  // Anchor: every leading-numeric input token must appear verbatim in
+  // Anchor: every numeric-leading input token must appear verbatim in
   // the candidate. Guards "12 Main" silently matching inside "1234
   // Main Street" — the prefix-collision class homes #50 + compass #45
   // both addressed.
@@ -86,6 +225,10 @@ export function addressMatch(
     if (/^\d/.test(t) && !candTokens.has(t)) {
       return { matched: false, score: 0 };
     }
+  }
+
+  if (streetStructureConflicts(input, candidate)) {
+    return { matched: false, score: 0 };
   }
 
   let hits = 0;

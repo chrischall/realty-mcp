@@ -33,6 +33,15 @@ describe('tokenize', () => {
     ]);
   });
 
+  it('keeps short all-digit tokens in any position (number-last formats, fleet-audit#214)', () => {
+    expect(tokenize('Storgatan 12, Stockholm')).toEqual([
+      'storgatan',
+      '12',
+      'stockholm',
+    ]);
+    expect(tokenize('Gäddstigen 1')).toEqual(['gaddstigen', '1']);
+  });
+
   it('returns empty for empty/whitespace input', () => {
     expect(tokenize('')).toEqual([]);
     expect(tokenize('   ')).toEqual([]);
@@ -68,6 +77,219 @@ describe('addressMatch', () => {
     const r = addressMatch('126 Aaaa Bbbb Cccc', '126 Aaaa');
     expect(r.matched).toBe(false);
     expect(r.score).toBeCloseTo(0.5);
+  });
+
+  describe('number-last addresses (hemnet, fleet-audit#214)', () => {
+    it('rejects a different house number on the same street', () => {
+      expect(
+        addressMatch('Storgatan 12, Stockholm', 'Storgatan 14, Stockholm')
+      ).toEqual({ matched: false, score: 0 });
+      expect(addressMatch('Gäddstigen 1', 'Gäddstigen 3')).toEqual({
+        matched: false,
+        score: 0,
+      });
+    });
+
+    it('rejects a prefix-colliding house number', () => {
+      expect(addressMatch('Storgatan 12', 'Storgatan 125').matched).toBe(
+        false
+      );
+    });
+
+    it('still matches the same number-last address', () => {
+      const r = addressMatch('Storgatan 12, Stockholm', 'Storgatan 12');
+      expect(r.matched).toBe(true);
+      expect(addressMatch('Gäddstigen 1', 'Gäddstigen 1').score).toBe(1);
+    });
+  });
+
+  describe('directionals (fleet-audit#215)', () => {
+    it('rejects a conflicting prefix directional', () => {
+      expect(addressMatch('123 N Main St', '123 S Main St')).toEqual({
+        matched: false,
+        score: 0,
+      });
+    });
+
+    it('rejects a conflicting suffix directional', () => {
+      expect(addressMatch('123 Main St NW', '123 Main St SE').matched).toBe(
+        false
+      );
+    });
+
+    it('treats spelled-out and abbreviated directionals as equal', () => {
+      expect(addressMatch('123 North Main St', '123 S Main St').matched).toBe(
+        false
+      );
+      expect(
+        addressMatch('123 N Main St', '123 North Main Street').matched
+      ).toBe(true);
+    });
+
+    it('accepts a candidate that omits the directional', () => {
+      expect(addressMatch('123 N Main St', '123 Main St').matched).toBe(true);
+    });
+
+    it('reads a directional-looking word before the street type as the name', () => {
+      expect(addressMatch('123 North St', '123 North Street').matched).toBe(
+        true
+      );
+    });
+
+    it('does not read a trailing state code as a directional', () => {
+      expect(
+        addressMatch('123 Main St', '123 Main St Omaha NE 68102').matched
+      ).toBe(true);
+    });
+
+    describe('city names that start with a direction word', () => {
+      it('does not let a no-comma city name satisfy a prefix conflict (onehome haystack)', () => {
+        const haystack =
+          '123 s main st north charleston sc 29405 123 S Main St, North Charleston, SC 29405';
+        expect(
+          addressMatch('123 N Main St, North Charleston, SC', haystack)
+        ).toEqual({ matched: false, score: 0 });
+      });
+
+      it('still matches the right parcel in a no-comma haystack', () => {
+        const haystack =
+          '123 n main st north charleston sc 29405 123 N Main St, North Charleston, SC 29405';
+        expect(
+          addressMatch('123 N Main St, North Charleston, SC', haystack).matched
+        ).toBe(true);
+      });
+
+      it('does not read a no-comma city as a suffix directional (redfin row.name first)', () => {
+        // 'West' begins the locality, not a suffix — no conflict with E.
+        expect(
+          addressMatch('123 Main St E', '123 Main St West Palm Beach FL')
+        ).toEqual({ matched: true, score: 1 });
+        expect(
+          addressMatch('123 Main St E', '123 Main St West Palm Beach FL 33401')
+            .matched
+        ).toBe(true);
+      });
+
+      it('handles other direction-word cities in no-comma queries', () => {
+        expect(
+          addressMatch('500 Oak Ave South Bend IN', '500 Oak Ave N').matched
+        ).toBe(true);
+        expect(
+          addressMatch('500 Oak Ave East Lansing MI', '500 Oak Ave W, East Lansing, MI')
+            .matched
+        ).toBe(true);
+      });
+    });
+
+    it('compares prefix with prefix and suffix with suffix', () => {
+      // Prefix N vs suffix N on the other side is not overlap evidence
+      // that rescues a conflicting prefix.
+      expect(
+        addressMatch('123 N Main St', '123 S Main St N').matched
+      ).toBe(false);
+      expect(
+        addressMatch('123 N Main St NW', '123 N Main St SE').matched
+      ).toBe(false);
+    });
+
+    it('reads a quadrant suffix (NE/NW/SE/SW) before comma-less city text (onehome haystack)', () => {
+      // DC-style quadrants never begin a city name, so they count as a
+      // suffix even when locality text follows without a comma.
+      expect(
+        addressMatch(
+          '123 Main St NW',
+          '123 main st se washington dc 20001 123 Main St SE, Washington, DC 20001'
+        )
+      ).toEqual({ matched: false, score: 0 });
+      expect(
+        addressMatch(
+          '123 Main St NW',
+          '123 main st nw washington dc 20001 123 Main St NW, Washington, DC 20001'
+        ).matched
+      ).toBe(true);
+      expect(
+        addressMatch('123 Main St NW, Washington, DC', '123 Main St SE Washington DC')
+          .matched
+      ).toBe(false);
+    });
+
+    it('reads a suffix directional followed by a unit designator', () => {
+      expect(
+        addressMatch('123 Main St NW Apt 4', '123 Main St SE Apt 4').matched
+      ).toBe(false);
+      expect(
+        addressMatch('123 Main St NW Apt 4', '123 Main St NW Apt 4').matched
+      ).toBe(true);
+    });
+  });
+
+  describe('extra street-name words (fleet-audit#215)', () => {
+    it('treats a US route prefix as optional ("US Hwy 50" vs "Hwy 50")', () => {
+      expect(addressMatch('123 US Hwy 50', '123 Hwy 50').matched).toBe(true);
+      expect(addressMatch('123 Hwy 50', '123 US Hwy 50').matched).toBe(true);
+    });
+
+    it('rejects a candidate whose street name has an extra word', () => {
+      expect(addressMatch('123 Oak St', '123 Oak Hill Dr')).toEqual({
+        matched: false,
+        score: 0,
+      });
+    });
+
+    it('rejects symmetrically (candidate-first callers, e.g. redfin autocomplete)', () => {
+      expect(addressMatch('123 Oak Hill Dr', '123 Oak St').matched).toBe(false);
+      expect(addressMatch('158 Raven Hill Blvd', '158 Raven Blvd').matched).toBe(
+        false
+      );
+    });
+
+    it('ignores locality noise after the street type', () => {
+      expect(
+        addressMatch('158 Raven Blvd', '158 Raven Blvd Lake Lure NC 28746')
+          .matched
+      ).toBe(true);
+      expect(
+        addressMatch('123 Oak St', '123 Oak St, Charlotte, NC').matched
+      ).toBe(true);
+    });
+
+    it('normalises name abbreviations (Mt ↔ Mount)', () => {
+      expect(
+        addressMatch('126 Mt Mitchell Rd', '126 Mount Mitchell Road').matched
+      ).toBe(true);
+    });
+
+    it('normalises St ↔ Saint as a name word', () => {
+      expect(
+        addressMatch('123 St Charles Ave', '123 Saint Charles Ave').matched
+      ).toBe(true);
+      expect(
+        addressMatch('123 Saint Charles Ave', '123 St Charles Ave, New Orleans, LA')
+          .matched
+      ).toBe(true);
+    });
+
+    it('treats generational suffixes (Jr, Sr) as optional name words', () => {
+      expect(
+        addressMatch('123 Martin Luther King Jr Blvd', '123 Martin Luther King Blvd')
+          .matched
+      ).toBe(true);
+      expect(
+        addressMatch(
+          '123 Martin Luther King Blvd',
+          '123 Martin Luther King Jr Blvd, Charlotte, NC'
+        ).matched
+      ).toBe(true);
+      expect(
+        addressMatch('45 Hank Williams Sr Way', '45 Hank Williams Way').matched
+      ).toBe(true);
+    });
+
+    it('still rejects a different street that differs by more than Jr/Sr', () => {
+      expect(
+        addressMatch('123 Martin Luther King Jr Blvd', '123 King Blvd').matched
+      ).toBe(false);
+    });
   });
 
   it('handles empty input as no match', () => {
