@@ -41,26 +41,33 @@ export const SUFFIX_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['Hts', 'Heights'],
   ['Mt', 'Mount'],
   ['Crk', 'Creek'],
-  // Alias-only pairs: non-USPS spellings seen in the wild. They expand
-  // to the full form but never become a contraction target, because
-  // FULL_TO_ABBR below is first-write-wins (Parkway → Pkwy, not Pkw).
+];
+
+/**
+ * Alias-only pairs: non-USPS spellings seen in the wild. They expand to
+ * the full form but are never a contraction target, and they are kept
+ * OUT of the exported SUFFIX_PAIRS so consumers that fold that table
+ * full -> abbr (compass-mcp's SUFFIX_FOLD, last-write-wins) keep folding
+ * Parkway -> Pkwy, Circle -> Cir and Creek -> Crk (fleet-audit#216).
+ * "Cr" is ambiguous — informal for Circle, sometimes Creek — so it
+ * expands to both.
+ */
+const ALIAS_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ['Pkw', 'Parkway'],
-  // "Cr" is ambiguous — informal for Circle, sometimes Creek — so it
-  // expands to both (fleet-audit#216).
   ['Cr', 'Circle'],
   ['Cr', 'Creek'],
 ];
 
 const ABBR_TO_FULL = new Map<string, string[]>();
 const FULL_TO_ABBR = new Map<string, string>();
-for (const [abbr, full] of SUFFIX_PAIRS) {
+for (const [abbr, full] of [...SUFFIX_PAIRS, ...ALIAS_PAIRS]) {
   if (abbr === full) continue;
   const a = abbr.toLowerCase();
   const f = full.toLowerCase();
   const fulls = ABBR_TO_FULL.get(a) ?? [];
   if (!fulls.includes(full)) fulls.push(full);
   ABBR_TO_FULL.set(a, fulls);
-  // First write wins: the canonical USPS pair precedes any alias.
+  // First write wins: every canonical USPS pair precedes the aliases.
   if (!FULL_TO_ABBR.has(f)) FULL_TO_ABBR.set(f, abbr);
 }
 

@@ -14,6 +14,36 @@ describe('SUFFIX_PAIRS', () => {
     expect(pairs.get('Mtn')).toBe('Mountain');
     expect(pairs.get('Hts')).toBe('Heights');
   });
+
+  // Downstream consumers (compass-mcp's SUFFIX_FOLD) fold SUFFIX_PAIRS
+  // full -> abbr with a last-write-wins Map. Alias-only spellings (Pkw,
+  // Cr) must stay out of the exported table or they hijack the fold.
+  it('folds last-write-wins to the canonical USPS abbreviation', () => {
+    const fold = new Map(
+      SUFFIX_PAIRS.flatMap(([abbr, full]) => [
+        [abbr.toLowerCase(), abbr.toLowerCase()] as [string, string],
+        [full.toLowerCase(), abbr.toLowerCase()] as [string, string],
+      ])
+    );
+    expect(fold.get('circle')).toBe('cir');
+    expect(fold.get('cir')).toBe('cir');
+    expect(fold.get('parkway')).toBe('pkwy');
+    expect(fold.get('creek')).toBe('crk');
+    expect(fold.get('circle')).not.toBe(fold.get('creek'));
+  });
+
+  it('is one-to-one: no full form or abbreviation appears twice', () => {
+    const abbrs = SUFFIX_PAIRS.map(([a]) => a.toLowerCase());
+    const fulls = SUFFIX_PAIRS.map(([, f]) => f.toLowerCase());
+    expect(new Set(abbrs).size).toBe(abbrs.length);
+    expect(new Set(fulls).size).toBe(fulls.length);
+  });
+
+  it('keeps the non-USPS aliases Pkw and Cr out of the exported table', () => {
+    const abbrs = SUFFIX_PAIRS.map(([a]) => a);
+    expect(abbrs).not.toContain('Pkw');
+    expect(abbrs).not.toContain('Cr');
+  });
 });
 
 describe('expandSuffix', () => {
