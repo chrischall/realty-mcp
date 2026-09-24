@@ -42,6 +42,23 @@ describe('tokenize', () => {
     expect(tokenize('Gäddstigen 1')).toEqual(['gaddstigen', '1']);
   });
 
+  it('drops unit / floor designators and their ids (fleet-audit#920)', () => {
+    expect(tokenize('123 Main St Apt 5')).toEqual(['123', 'main']);
+    expect(tokenize('123 Main St Unit 12, Charlotte, NC')).toEqual([
+      '123',
+      'main',
+      'charlotte',
+    ]);
+    expect(tokenize('Storgatan 12, 3 tr')).toEqual(['storgatan', '12']);
+    expect(tokenize('Storgatan 12 lgh 1201')).toEqual(['storgatan', '12']);
+  });
+
+  it('keeps a letter-suffixed house number as the anchor (fleet-audit#954)', () => {
+    expect(tokenize('Kungsgatan 3A')).toEqual(['kungsgatan', '3a']);
+    expect(tokenize('Kungsgatan 3 A, Göteborg')).toEqual(['kungsgatan', '3a', 'goteborg']);
+    expect(tokenize('12B Main St')).toEqual(['12b', 'main']);
+  });
+
   it('returns empty for empty/whitespace input', () => {
     expect(tokenize('')).toEqual([]);
     expect(tokenize('   ')).toEqual([]);
@@ -289,6 +306,63 @@ describe('addressMatch', () => {
       expect(
         addressMatch('123 Martin Luther King Jr Blvd', '123 King Blvd').matched
       ).toBe(false);
+    });
+  });
+
+  describe('unit and floor designators (fleet-audit#920)', () => {
+    it('matches a query carrying a unit against a street-only candidate', () => {
+      // Portals return the street line only (zillow listingStreetAddress,
+      // redfin streetLineOf, homes street_address), so a condo query
+      // must not hard-reject on its own unit number.
+      expect(addressMatch('123 Main St Apt 5', '123 Main St, Charlotte, NC')).toEqual(
+        { matched: true, score: 1 }
+      );
+      expect(addressMatch('123 Main St Unit 12', '123 Main St').matched).toBe(true);
+      expect(addressMatch('123 Main St #5', '123 Main St').matched).toBe(true);
+      expect(addressMatch('123 Main St Apt 101', '123 Main St').matched).toBe(true);
+      expect(addressMatch('123 Main St Ste 200', '123 Main St').matched).toBe(true);
+    });
+
+    it('matches Swedish floor / apartment designators against a street-only candidate', () => {
+      expect(addressMatch('Storgatan 12, 3 tr', 'Storgatan 12, Stockholm').matched).toBe(
+        true
+      );
+      expect(addressMatch('Storgatan 12, 3 tr', 'Storgatan 12').matched).toBe(true);
+      expect(addressMatch('Storgatan 12 lgh 1201', 'Storgatan 12').matched).toBe(true);
+      expect(addressMatch('Storgatan 12, lgh 1201', 'Storgatan 12, 3 tr').matched).toBe(
+        true
+      );
+    });
+
+    it('still matches when only the candidate carries the unit', () => {
+      expect(addressMatch('123 Main St', '123 Main St Apt 5').score).toBe(1);
+    });
+
+    it('still anchors on the house number when a unit is present', () => {
+      expect(addressMatch('124 Main St Apt 5', '123 Main St')).toEqual({
+        matched: false,
+        score: 0,
+      });
+      expect(addressMatch('Storgatan 14, 3 tr', 'Storgatan 12').matched).toBe(false);
+    });
+
+    it('rejects conflicting units when both sides carry one', () => {
+      expect(addressMatch('123 Main St Apt 5', '123 Main St Apt 6')).toEqual({
+        matched: false,
+        score: 0,
+      });
+      expect(addressMatch('123 Main St Apt 101', '123 Main St Apt 102').matched).toBe(
+        false
+      );
+      expect(addressMatch('123 Main St Apt 5', '123 Main St Unit 5').matched).toBe(true);
+      expect(addressMatch('Storgatan 12 lgh 1201', 'Storgatan 12 lgh 1202').matched).toBe(
+        false
+      );
+    });
+
+    it('does not read a name word that happens to be a designator as a unit', () => {
+      expect(addressMatch('123 Space Needle Way', '123 Space Needle Way').score).toBe(1);
+      expect(addressMatch('123 Lot Tree Ln', '123 Lot Tree Lane').matched).toBe(true);
     });
   });
 
