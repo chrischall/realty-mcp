@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.7](https://github.com/chrischall/realty-mcp/compare/v0.4.6...v0.4.7) (2026-09-23)
+
+
+### Bug Fixes
+
+* **core:** tighten addressMatch house-number, directional and street-name matching, and fix suffix contractions ([#63](https://github.com/chrischall/realty-mcp/issues/63)) ([fde22fd](https://github.com/chrischall/realty-mcp/commit/fde22fd0c1b9dd962cac6a12d0752c389b1f7aae))
+
 ## [0.4.6](https://github.com/chrischall/realty-mcp/compare/v0.4.5...v0.4.6) (2026-07-19)
 
 
