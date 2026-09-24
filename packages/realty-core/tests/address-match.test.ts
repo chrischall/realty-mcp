@@ -366,6 +366,34 @@ describe('addressMatch', () => {
     });
   });
 
+  describe('letter-suffixed house numbers (fleet-audit#954)', () => {
+    it('anchors on a number-last letter-suffixed house number', () => {
+      expect(addressMatch('Kungsgatan 3A', 'Kungsgatan 3, Göteborg')).toEqual({
+        matched: false,
+        score: 0,
+      });
+      expect(addressMatch('Kungsgatan 3A', 'Kungsgatan 3B, Göteborg').matched).toBe(false);
+      expect(addressMatch('Kungsgatan 3A', 'Kungsgatan 99, Göteborg').matched).toBe(false);
+      expect(addressMatch('Kungsgatan 3', 'Kungsgatan 3B, Göteborg').matched).toBe(false);
+      expect(addressMatch('Kungsgatan 3A', 'Kungsgatan 3A, Göteborg')).toEqual({
+        matched: true,
+        score: 1,
+      });
+    });
+
+    it('normalises a spaced letter suffix ("3 A" ≡ "3A")', () => {
+      expect(addressMatch('Kungsgatan 3 A', 'Kungsgatan 3A, Göteborg').matched).toBe(true);
+      expect(addressMatch('Kungsgatan 3A', 'Kungsgatan 3 A').matched).toBe(true);
+      expect(addressMatch('Kungsgatan 3 A', 'Kungsgatan 3 B').matched).toBe(false);
+    });
+
+    it('anchors on a number-first letter-suffixed house number', () => {
+      expect(addressMatch('12B Main St', '12 Main St').matched).toBe(false);
+      expect(addressMatch('12 Main St', '12B Main St').matched).toBe(false);
+      expect(addressMatch('12B Main St', '12B Main Street, Charlotte, NC').score).toBe(1);
+    });
+  });
+
   it('handles empty input as no match', () => {
     const r = addressMatch('', '126 Sleeping Bear Lane');
     expect(r.matched).toBe(false);
