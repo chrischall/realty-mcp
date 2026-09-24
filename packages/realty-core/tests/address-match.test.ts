@@ -392,6 +392,18 @@ describe('addressMatch', () => {
       expect(addressMatch('12 Main St', '12B Main St').matched).toBe(false);
       expect(addressMatch('12B Main St', '12B Main Street, Charlotte, NC').score).toBe(1);
     });
+
+    it('keeps a bare single-letter street name after a leading house number', () => {
+      // "100 A" is house 100 on A Street with the type omitted, not
+      // house "100A" — only a number that follows the street name
+      // ("Kungsgatan 3 A") takes a spaced letter suffix.
+      expect(tokenize('100 A')).toEqual(['100']);
+      expect(addressMatch('100 A', '100 A St').matched).toBe(true);
+      expect(addressMatch('100 A St', '100 A').matched).toBe(true);
+      expect(addressMatch('100 A, Sacramento, CA', '100 A St, Sacramento, CA').matched).toBe(true);
+      expect(addressMatch('100 A St', '100 B St').matched).toBe(false);
+      expect(addressMatch('100 A', '100A Main St').matched).toBe(false);
+    });
   });
 
   describe('state codes and ZIPs are not floors', () => {

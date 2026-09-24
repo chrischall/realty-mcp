@@ -130,13 +130,16 @@ interface Analyzed {
 /**
  * Comma segment → raw tokens, with a spaced letter suffix at the end of
  * the segment folded into the number it follows ("Kungsgatan 3 A, …"
- * → "3a", fleet-audit#954). A single letter elsewhere is left alone so
- * "123 A St" keeps its street name.
+ * → "3a", fleet-audit#954). Only a number that FOLLOWS a street word
+ * takes the suffix: when the number leads the segment ("100 A") the
+ * letter is a bare single-letter street name (A Street with its type
+ * omitted), just as in "123 A St". A single letter elsewhere is left
+ * alone for the same reason.
  */
 function segmentTokens(segment: string): string[] {
   const raw = rawTokens(segment);
   const n = raw.length;
-  if (n >= 2 && /^\d+$/.test(raw[n - 2]!) && /^[a-z]$/.test(raw[n - 1]!)) {
+  if (n >= 3 && /^\d+$/.test(raw[n - 2]!) && /^[a-z]$/.test(raw[n - 1]!)) {
     return [...raw.slice(0, n - 2), raw[n - 2]! + raw[n - 1]!];
   }
   return raw;
