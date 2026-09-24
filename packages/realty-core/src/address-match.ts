@@ -41,8 +41,11 @@
  *     the first digit-leading token of the form `\d+[a-z]?`, whether
  *     it leads ("12 Main", "12B Main") or trails ("Storgatan 12",
  *     "Kungsgatan 3A" — fleet-audit#214, #954). It MUST appear
- *     verbatim in the candidate. Other digit tokens (ZIP, a bare "#101")
- *     are ordinary scored tokens.
+ *     verbatim in the candidate. Other digit tokens (a ZIP) are ordinary
+ *     scored tokens, so a ZIP mismatch lowers the score but no longer
+ *     hard-rejects on its own. A bare "#101" is a unit, like "Apt 101".
+ *     A floor number is at most three digits, so "FL 33602" stays a
+ *     state code + ZIP.
  *  4. Reject conflicting directionals and street names with words
  *     the other side lacks, in both directions (fleet-audit#215).
  *  5. Score = |query ∩ candidate| / |query| over the kept tokens.
@@ -54,6 +57,18 @@ const HOUSE_NUMBER = /^\d+[a-z]?$/;
 
 /** A unit id after a designator: "5", "5b", "101", "b", "b12". */
 const UNIT_ID = /^(?:\d+[a-z]?|[a-z]|[a-z]\d+)$/;
+
+/**
+ * A floor number after a floor designator: at most three digits (or a
+ * single letter, "Fl B"). Deliberately narrower than UNIT_ID so the
+ * state code and ZIP in "Tampa, FL 33602" are never read as "floor
+ * 33602" and stripped — that would let the same house number in a
+ * different Florida city match.
+ */
+const FLOOR_ID = /^(?:\d{1,3}[a-z]?|[a-z])$/;
+
+/** Placeholder designator a bare "#" is rewritten to, so "#101" is a unit. */
+const HASH_UNIT = 'unit';
 
 /**
  * Designators that PRECEDE a unit id ("Apt 5", "Unit 12", "lgh 1201").
@@ -110,18 +125,22 @@ function segmentTokens(segment: string): string[] {
 function analyze(input: string): Analyzed {
   const units = new Set<string>();
   if (!input) return { tokens: [], houseNumber: null, units };
-  const raw = input.split(',').flatMap(segmentTokens);
+  // A bare "#101" names a unit just like "Apt 101", so rewrite the "#"
+  // into a designator before punctuation is stripped.
+  const raw = input.replace(/#/g, ` ${HASH_UNIT} `).split(',').flatMap(segmentTokens);
 
   const kept: string[] = [];
   for (let i = 0; i < raw.length; i++) {
     const t = raw[i]!;
     const next = raw[i + 1];
+    // "Apt #5" → "apt unit 5": the first designator is redundant.
+    if (UNIT_PREFIX_DESIGNATORS.has(t) && next === HASH_UNIT) continue;
     if (UNIT_PREFIX_DESIGNATORS.has(t) && next !== undefined && UNIT_ID.test(next)) {
       units.add(next);
       i++;
       continue;
     }
-    if (FLOOR_PREFIX_DESIGNATORS.has(t) && next !== undefined && UNIT_ID.test(next)) {
+    if (FLOOR_PREFIX_DESIGNATORS.has(t) && next !== undefined && FLOOR_ID.test(next)) {
       i++;
       continue;
     }

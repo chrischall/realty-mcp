@@ -394,6 +394,44 @@ describe('addressMatch', () => {
     });
   });
 
+  describe('state codes and ZIPs are not floors', () => {
+    it('keeps "FL <zip>" as locality, not a floor designator', () => {
+      expect(tokenize('123 Main St, Tampa, FL 33602')).toEqual([
+        '123', 'main', 'tampa', '33602',
+      ]);
+    });
+
+    it('rejects the same house number in a different Florida city', () => {
+      expect(
+        addressMatch('123 Main St, Tampa, FL 33602', '123 Main St, Orlando, FL 32801').matched
+      ).toBe(false);
+      expect(addressMatch('123 Main St, Tampa, FL 33602', '123 Main St').matched).toBe(false);
+    });
+
+    it('still strips a real floor ("Fl 3", "Floor 12")', () => {
+      expect(addressMatch('123 Main St Fl 3', '123 Main Street').matched).toBe(true);
+      expect(addressMatch('123 Main St, Floor 12', '123 Main Street').matched).toBe(true);
+    });
+  });
+
+  describe('bare "#" units', () => {
+    it('matches a street-only candidate', () => {
+      expect(addressMatch('123 Main St #101', '123 Main Street').matched).toBe(true);
+    });
+
+    it('rejects a different "#" unit, like "Apt"', () => {
+      expect(addressMatch('123 Main St #101', '123 Main St #102').matched).toBe(false);
+      expect(addressMatch('123 Main St #101', '123 Main St Apt 102').matched).toBe(false);
+      expect(addressMatch('123 Main St #101', '123 Main St Unit 101').matched).toBe(true);
+    });
+
+    it('treats "Apt #5" as one unit', () => {
+      expect(tokenize('123 Main St Apt #5')).toEqual(['123', 'main']);
+      expect(addressMatch('123 Main St Apt #5', '123 Main St #5').matched).toBe(true);
+      expect(addressMatch('123 Main St Apt #5', '123 Main St #6').matched).toBe(false);
+    });
+  });
+
   it('handles empty input as no match', () => {
     const r = addressMatch('', '126 Sleeping Bear Lane');
     expect(r.matched).toBe(false);
