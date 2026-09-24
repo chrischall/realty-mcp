@@ -45,7 +45,10 @@
  *     scored tokens, so a ZIP mismatch lowers the score but no longer
  *     hard-rejects on its own. A bare "#101" is a unit, like "Apt 101".
  *     A floor number is at most three digits, so "FL 33602" stays a
- *     state code + ZIP.
+ *     state code + ZIP. A 1-4 digit number right after a route word
+ *     in the street segment ("County Road 12", "Highway 50", "State
+ *     Route 7") is a street-name anchor too: it must appear on the other
+ *     side, so different route numbers reject.
  *  4. Reject conflicting directionals and street names with words
  *     the other side lacks, in both directions (fleet-audit#215).
  *  5. Score = |query ∩ candidate| / |query| over the kept tokens.
@@ -66,6 +69,24 @@ const UNIT_ID = /^(?:\d+[a-z]?|[a-z]|[a-z]\d+)$/;
  * different Florida city match.
  */
 const FLOOR_ID = /^(?:\d{1,3}[a-z]?|[a-z])$/;
+
+/**
+ * Words that name a numbered road: the number right after one ("County
+ * Road 12", "Highway 50", "State Route 7", "US 50", "FM 1960") is part
+ * of the street name, not a unit or ZIP, so it must discriminate between
+ * streets like the house number does.
+ */
+const ROUTE_WORDS: ReadonlySet<string> = new Set([
+  'road', 'rd', 'highway', 'hwy', 'route', 'rte', 'fm', 'cr', 'sr', 'us',
+  'sh', 'interstate',
+]);
+
+/**
+ * A route number: at most four digits (optionally one letter), so a
+ * comma-less five-digit ZIP after "Rd" ("123 Old Mill Rd 28202") is
+ * never read as one.
+ */
+const ROUTE_NUMBER = /^\d{1,4}[a-z]?$/;
 
 /** Placeholder designator a bare "#" is rewritten to, so "#101" is a unit. */
 const HASH_UNIT = 'unit';
@@ -100,6 +121,10 @@ interface Analyzed {
   houseNumber: string | null;
   /** Unit ids named by a prefix designator ("Apt 5" → "5"). */
   units: Set<string>;
+  /** Route numbers in the street segment ("County Road 12" → "12"). */
+  routeNumbers: Set<string>;
+  /** Every kept token before the short-token filter. */
+  allTokens: Set<string>;
 }
 
 /**
@@ -124,10 +149,15 @@ function segmentTokens(segment: string): string[] {
  */
 function analyze(input: string): Analyzed {
   const units = new Set<string>();
-  if (!input) return { tokens: [], houseNumber: null, units };
+  const routeNumbers = new Set<string>();
+  if (!input) {
+    return { tokens: [], houseNumber: null, units, routeNumbers, allTokens: new Set() };
+  }
   // A bare "#101" names a unit just like "Apt 101", so rewrite the "#"
   // into a designator before punctuation is stripped.
-  const raw = input.replace(/#/g, ` ${HASH_UNIT} `).split(',').flatMap(segmentTokens);
+  const segments = input.replace(/#/g, ` ${HASH_UNIT} `).split(',');
+  const streetSegmentLength = segmentTokens(segments[0] ?? '').length;
+  const raw = segments.flatMap(segmentTokens);
 
   const kept: string[] = [];
   for (let i = 0; i < raw.length; i++) {
@@ -144,13 +174,26 @@ function analyze(input: string): Analyzed {
       i++;
       continue;
     }
+    // Swedish postfix floor "3 tr": drop the number before it, unless
+    // that number is the house number ("Storgatan 3 tr" keeps its 3).
     if (
       FLOOR_POSTFIX_DESIGNATORS.has(t) &&
       kept.length > 0 &&
-      /^\d+$/.test(kept[kept.length - 1]!)
+      /^\d+$/.test(kept[kept.length - 1]!) &&
+      kept.findIndex((k) => HOUSE_NUMBER.test(k)) !== kept.length - 1
     ) {
       kept.pop();
       continue;
+    }
+    // A number right after a route word in the street segment is part
+    // of the street name ("County Road 12", "Highway 50").
+    if (
+      i < streetSegmentLength &&
+      i > 0 &&
+      ROUTE_WORDS.has(raw[i - 1]!) &&
+      ROUTE_NUMBER.test(t)
+    ) {
+      routeNumbers.add(t);
     }
     kept.push(t);
   }
@@ -161,8 +204,10 @@ function analyze(input: string): Analyzed {
   // always survive the short-token filter so the anchor has something
   // to work with.
   const houseNumber = kept.find((t) => HOUSE_NUMBER.test(t)) ?? null;
-  const tokens = kept.filter((t) => t.length >= 3 || t === houseNumber);
-  return { tokens, houseNumber, units };
+  const tokens = kept.filter(
+    (t) => t.length >= 3 || t === houseNumber || routeNumbers.has(t)
+  );
+  return { tokens, houseNumber, units, routeNumbers, allTokens: new Set(kept) };
 }
 
 /**
@@ -352,6 +397,13 @@ export function addressMatch(
   if (a.houseNumber !== null && c.houseNumber !== null && a.houseNumber !== c.houseNumber) {
     return { matched: false, score: 0 };
   }
+
+  // Route numbers are street-name anchors: "County Road 12" is not
+  // "County Road 21", and a side that names a route number needs the
+  // other to carry it too. Checked both ways so "US Hwy 50" ≡ "Hwy 50"
+  // still matches while "Route 101" vs "Route 102" does not.
+  for (const r of a.routeNumbers) if (!c.allTokens.has(r)) return { matched: false, score: 0 };
+  for (const r of c.routeNumbers) if (!a.allTokens.has(r)) return { matched: false, score: 0 };
 
   // Same building, different unit: only when BOTH sides name a unit and
   // share none of them ("Apt 5" vs "Apt 6"; "Bldg 2 Apt 5" vs "Apt 5" is fine).

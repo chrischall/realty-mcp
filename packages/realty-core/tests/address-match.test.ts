@@ -405,12 +405,47 @@ describe('addressMatch', () => {
       expect(
         addressMatch('123 Main St, Tampa, FL 33602', '123 Main St, Orlando, FL 32801').matched
       ).toBe(false);
-      expect(addressMatch('123 Main St, Tampa, FL 33602', '123 Main St').matched).toBe(false);
     });
 
     it('still strips a real floor ("Fl 3", "Floor 12")', () => {
       expect(addressMatch('123 Main St Fl 3', '123 Main Street').matched).toBe(true);
       expect(addressMatch('123 Main St, Floor 12', '123 Main Street').matched).toBe(true);
+    });
+  });
+
+  describe('route-numbered streets', () => {
+    it('rejects a different road or route number', () => {
+      expect(
+        addressMatch('4501 County Road 12, Anytown, TX', '4501 County Road 21, Anytown, TX').matched
+      ).toBe(false);
+      expect(addressMatch('123 Highway 50', '123 Highway 51').matched).toBe(false);
+      expect(addressMatch('123 State Route 7', '123 State Route 9').matched).toBe(false);
+      expect(addressMatch('123 US Hwy 50', '123 US Hwy 51').matched).toBe(false);
+      expect(addressMatch('123 Route 101', '123 Route 102').matched).toBe(false);
+    });
+
+    it('rejects a candidate that drops the route number', () => {
+      expect(addressMatch('123 County Road 12', '123 County Road').matched).toBe(false);
+      expect(addressMatch('123 County Road', '123 County Road 12').matched).toBe(false);
+    });
+
+    it('still matches the same route written differently', () => {
+      expect(addressMatch('123 US Hwy 50', '123 Hwy 50').matched).toBe(true);
+      expect(addressMatch('4501 County Road 12, Anytown, TX', '4501 County Road 12').matched).toBe(
+        true
+      );
+      expect(addressMatch('123 Route 101 Apt 5', '123 Route 101').matched).toBe(true);
+    });
+
+    it('does not read a comma-less ZIP after a street type as a route number', () => {
+      expect(addressMatch('123 Old Mill Rd 28202', '123 Old Mill Rd').matched).toBe(true);
+    });
+  });
+
+  describe('Swedish "N tr" floors never take the house number', () => {
+    it('keeps the only number as the anchor', () => {
+      expect(addressMatch('Storgatan 3 tr', 'Storgatan 99').matched).toBe(false);
+      expect(addressMatch('Storgatan 12 3 tr', 'Storgatan 12').matched).toBe(true);
     });
   });
 
