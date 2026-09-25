@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.8](https://github.com/chrischall/realty-mcp/compare/v0.4.7...v0.4.8) (2026-09-24)
+
+
+### Bug Fixes
+
+* **core:** match unit-bearing and letter-suffixed addresses in addressMatch ([#66](https://github.com/chrischall/realty-mcp/issues/66)) ([61e229c](https://github.com/chrischall/realty-mcp/commit/61e229c557bd173a603fb13ab4bbcffa44a12f6d))
+
 ## [0.4.7](https://github.com/chrischall/realty-mcp/compare/v0.4.6...v0.4.7) (2026-09-23)
 
 
