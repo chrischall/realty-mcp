@@ -35,6 +35,7 @@
  */
 import { calculateMortgage, type MortgageBreakdown, type MortgageInput } from './mortgage.js';
 import { calculateAffordability, type AffordabilityInput } from './affordability.js';
+import { MAX_LOAN_TERM_YEARS } from './calculator-bounds.js';
 import {
   jsonToolResult,
   type ToolResultLike,
@@ -136,7 +137,13 @@ export function mortgageInputSchema(z: ZodLike): unknown {
     down_payment: z.number().nonnegative().optional(),
     down_payment_percent: z.number().nonnegative().max(100).optional(),
     interest_rate: z.number().nonnegative().describe('Annual %, e.g. 6.5'),
-    loan_term_years: z.number().int().positive().optional().describe('Default 30'),
+    loan_term_years: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_LOAN_TERM_YEARS)
+      .optional()
+      .describe(`Default 30, max ${MAX_LOAN_TERM_YEARS}`),
     property_tax_annual: z.number().nonnegative().optional(),
     property_tax_rate: z.number().nonnegative().optional().describe('Annual % of home price'),
     insurance_annual: z.number().nonnegative().optional(),
@@ -156,7 +163,13 @@ export function affordabilityInputSchema(z: ZodLike): unknown {
       .describe('Sum of monthly debt payments (car, student loans, etc.)'),
     down_payment: z.number().nonnegative(),
     interest_rate: z.number().nonnegative().describe('Annual %, e.g. 6.5'),
-    loan_term_years: z.number().int().positive().optional().describe('Default 30'),
+    loan_term_years: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_LOAN_TERM_YEARS)
+      .optional()
+      .describe(`Default 30, max ${MAX_LOAN_TERM_YEARS}`),
     property_tax_rate: z
       .number()
       .nonnegative()
