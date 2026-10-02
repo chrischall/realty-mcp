@@ -30,10 +30,22 @@
  *   - Weekly       → amount * 52 / 12
  *
  * Null-safe: a missing / zero / non-finite amount, a missing frequency,
- * or an unparseable frequency string all yield `null` (the last with a
- * stderr warning so unknown vocabulary doesn't go unnoticed). The result
- * is rounded to the nearest dollar.
+ * or an unparseable frequency string all yield `null`. The result is
+ * rounded to the nearest dollar. The helper never writes to the console
+ * (realty-core is no-I/O, fleet-audit#664); a consumer that wants unknown
+ * vocabulary surfaced passes `onUnknownFrequency` and logs it itself.
  */
+
+/** Options for {@link hoaToMonthlyUsd}. */
+export interface HoaToMonthlyOptions {
+  /**
+   * Called with the raw `frequency` when it is present but not recognised
+   * (the call still returns `null`). Use it to log or count unknown
+   * vocabulary from your own logger — realty-core never writes to the
+   * console.
+   */
+  onUnknownFrequency?: (frequency: string) => void;
+}
 
 /**
  * Normalize an HOA fee to monthly USD, rounded to the nearest dollar.
@@ -44,8 +56,9 @@
  * `"bi-annual"`, …) — matching is case- and whitespace-insensitive.
  *
  * Returns `null` for a missing / zero / non-finite `amount`, a missing
- * `frequency`, or an unrecognized frequency string (the last logs a
- * stderr warning).
+ * `frequency`, or an unrecognized frequency string. For the last case
+ * `options.onUnknownFrequency` (if given) is called with the raw string —
+ * nothing is logged by default.
  *
  * @example hoaToMonthlyUsd(1200, 'Annually')      // 100
  * @example hoaToMonthlyUsd(250, '$250 / month')   // 250
@@ -54,7 +67,8 @@
  */
 export function hoaToMonthlyUsd(
   amount: number | null | undefined,
-  frequency: string | null | undefined
+  frequency: string | null | undefined,
+  options: HoaToMonthlyOptions = {}
 ): number | null {
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0) {
     return null;
@@ -86,9 +100,7 @@ export function hoaToMonthlyUsd(
   } else if (/^week/.test(f) || /per ?week/.test(f) || /\/ ?week/.test(f)) {
     monthly = (amount * 52) / 12;
   } else {
-    console.error(
-      `[realty-core] hoaToMonthlyUsd: unknown HOA frequency "${frequency}" — returning null`
-    );
+    options.onUnknownFrequency?.(frequency);
     return null;
   }
   return Math.round(monthly);

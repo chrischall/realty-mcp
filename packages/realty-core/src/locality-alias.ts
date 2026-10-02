@@ -13,11 +13,11 @@
  * 0.1.x publishes — the migration tracker issue lists each adopter.
  */
 
-// Top-level `node:` builtin import — equally bundleable (esbuild et al.
-// externalise node builtins), and unlike a bare `require('node:fs')` it
-// works in this ESM package ("type": "module"): `require` is not defined
-// in plain-ESM consumers of the published dist.
-import { readFileSync } from 'node:fs';
+// No `node:fs` import here — realty-core stays free of I/O at module load
+// (fleet-audit#664). A static `import … from 'node:fs'` dragged the builtin
+// into every consumer bundle, forcing `nodejs_compat` on Workers-hosted
+// connectors even when they never read a file. `fromJSON` is the I/O-free
+// entry point; the legacy `fromFile` resolves `fs` lazily, at call time.
 
 export interface LocalityKey {
   city: string;
@@ -38,8 +38,45 @@ interface AliasEntry {
   resolved?: string;
 }
 
-interface AliasFile {
-  entries: AliasEntry[];
+/**
+ * Validate the `{ entries: [...] }` alias document shape. Throws a
+ * `TypeError` naming the offending field — an entry missing `city` used to
+ * surface as an opaque "cannot read properties of undefined" inside the
+ * key normaliser.
+ */
+function parseAliasDocument(doc: unknown): AliasEntry[] {
+  if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+    throw new TypeError(
+      'LocalityAliasMap: expected an object of shape { entries: [...] }'
+    );
+  }
+  const entries = (doc as { entries?: unknown }).entries;
+  if (entries === undefined) return [];
+  if (!Array.isArray(entries)) {
+    throw new TypeError('LocalityAliasMap: "entries" must be an array');
+  }
+  return entries.map((e: unknown, i): AliasEntry => {
+    const at = `LocalityAliasMap: entries[${i}]`;
+    if (typeof e !== 'object' || e === null) {
+      throw new TypeError(`${at} must be an object`);
+    }
+    const { city, state, aliases, resolved } = e as Record<string, unknown>;
+    if (typeof city !== 'string') {
+      throw new TypeError(`${at}.city must be a string`);
+    }
+    if (typeof state !== 'string') {
+      throw new TypeError(`${at}.state must be a string`);
+    }
+    if (!Array.isArray(aliases) || !aliases.every((a) => typeof a === 'string')) {
+      throw new TypeError(`${at}.aliases must be an array of strings`);
+    }
+    if (resolved !== undefined && typeof resolved !== 'string') {
+      throw new TypeError(`${at}.resolved must be a string when present`);
+    }
+    return resolved === undefined
+      ? { city, state, aliases }
+      : { city, state, aliases, resolved };
+  });
 }
 
 const DEFAULT_ENTRIES: AliasEntry[] = [
@@ -91,18 +128,40 @@ export class LocalityAliasMap {
   }
 
   /**
-   * Load aliases from a JSON file. Shape:
+   * Build a map from an already-parsed alias document — no I/O, so it works
+   * in any runtime (Node, Workers, browser). Shape:
    *
    * ```json
    * { "entries": [
    *   { "city": "Lake Lure", "state": "NC", "aliases": ["Rutherfordton"], "resolved": "Rutherfordton" }
    * ] }
    * ```
+   *
+   * A missing `entries` yields an empty map; a malformed document throws a
+   * `TypeError` naming the bad field.
+   */
+  static fromJSON(doc: unknown): LocalityAliasMap {
+    return new LocalityAliasMap(parseAliasDocument(doc));
+  }
+
+  /**
+   * Load aliases from a JSON file on disk (Node only). Same shape and
+   * validation as {@link LocalityAliasMap.fromJSON}.
+   *
+   * `fs` is resolved at call time via `process.getBuiltinModule` (Node ≥
+   * 20.16 / 22.3), so importing realty-core never loads it. Prefer reading
+   * the file yourself and calling `fromJSON` — that keeps file I/O in the
+   * consumer, where the hoisting policy says it belongs.
    */
   static fromFile(path: string): LocalityAliasMap {
-    const raw = readFileSync(path, 'utf8');
-    const parsed = JSON.parse(raw) as AliasFile;
-    return new LocalityAliasMap(parsed.entries ?? []);
+    const fs = globalThis.process?.getBuiltinModule?.('node:fs');
+    if (!fs) {
+      throw new Error(
+        'LocalityAliasMap.fromFile needs Node.js (process.getBuiltinModule); ' +
+          'read the file yourself and use LocalityAliasMap.fromJSON instead'
+      );
+    }
+    return LocalityAliasMap.fromJSON(JSON.parse(fs.readFileSync(path, 'utf8')));
   }
 
   /**
