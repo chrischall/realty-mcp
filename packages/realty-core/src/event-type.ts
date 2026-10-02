@@ -25,9 +25,10 @@
  *    sentinel (redfin) so unrecognised input never silently
  *    mis-buckets as `Listed`.
  *  - Case-insensitive SUBSTRING matching against the keyword set, with
- *    two word-boundary exceptions — `\bactive\b` and `\bclosed\b` — so
- *    "Inactive"/"Deactivated" don't match Listed and "Foreclosed"
- *    doesn't match Sold.
+ *    word-boundary exceptions — `\bactive\b`, `\bclosed\b`,
+ *    `\blisted\b` and `\bre-?list` — so "Inactive"/"Deactivated" don't
+ *    match Listed, "Foreclosed" doesn't match Sold, and "Pre-listed" isn't
+ *    a relist. "Unlisted" is Delisted; "Back on market" is Relisted.
  *  - Specificity-ordered: tighter matches first, so "Relisted" beats
  *    "Listed", "Pending sale" beats "Sold", and "Price reduced" beats a
  *    bare "reduced".
@@ -69,8 +70,11 @@ export function mapEventType(raw: string | undefined | null): NormalizedEventTyp
   if (!raw) return 'Unknown';
   const s = raw.toLowerCase();
 
-  // Relisted must precede Listed: "relisted" contains "listed".
-  if (s.includes('relist') || s.includes('re-list')) return 'Relisted';
+  // Relisted must precede Listed: "relisted" contains "listed". `\bre-?list`
+  // so "Pre-listed" isn't a relist; "back on market" is the common relist
+  // label (fleet-audit#662).
+  if (/\bre-?list/.test(s) || /\bback[\s-]+on[\s-]+(?:the[\s-]+)?market\b/.test(s))
+    return 'Relisted';
   // Withdrawn / removed (zillow's "listing removed", homes/compass cancel).
   if (
     s.includes('withdrawn') ||
@@ -81,6 +85,8 @@ export function mapEventType(raw: string | undefined | null): NormalizedEventTyp
   // Delisted / off-market / expired (compass + homes additions).
   if (
     s.includes('delist') ||
+    // "Unlisted" — must not fall through to the `listed` match below.
+    s.includes('unlist') ||
     s.includes('off market') ||
     s.includes('off-market') ||
     s.includes('expired')
@@ -107,7 +113,9 @@ export function mapEventType(raw: string | undefined | null): NormalizedEventTyp
     return 'PriceChange';
   // Listed / active / coming-soon / for-sale (compass's richest set).
   if (
-    s.includes('listed') ||
+    // `\blisted\b` (whole word) so "unlisted"-style compounds never land
+    // here (fleet-audit#662).
+    /\blisted\b/.test(s) ||
     s.includes('new listing') ||
     // `\bactive\b` (not bare substring) so "Inactive" / "Deactivated"
     // don't match Listed.

@@ -30,10 +30,10 @@ describe('zipPlausibleStates', () => {
     expect(states).not.toContain('WA');
   });
 
-  it('returns CA/WA-bearing states for a 9-prefix ZIP', () => {
+  it('returns WA and its neighbours for a Seattle ZIP', () => {
     const states = zipPlausibleStates('98103');
     expect(states).toContain('WA');
-    expect(states).toContain('CA');
+    expect(states).toContain('OR');
   });
 
   it('returns NY/PA states for a 1-prefix ZIP', () => {
@@ -115,3 +115,97 @@ describe('extractZipFromLocation', () => {
     expect(extractZipFromLocation('123456')).toBeNull();
   });
 });
+
+// fleet-audit#660: the first-digit table missed real prefixes, so correct
+// in-state results were confidently rejected.
+describe('zipPlausibleStates — USPS 3-digit prefixes', () => {
+  it.each([
+    ['00501', 'NY'], // Holtsville (IRS)
+    ['00601', 'PR'],
+    ['00802', 'VI'],
+    ['05501', 'MA'], // Andover (IRS)
+    ['20101', 'VA'], // Dulles
+    ['20001', 'DC'],
+    ['56901', 'DC'], // federal parcel ZIPs
+    ['73301', 'TX'], // Austin (IRS)
+    ['88510', 'TX'], // El Paso
+    ['34002', 'AA'],
+    ['09001', 'AE'],
+    ['96201', 'AP'],
+    ['96799', 'AS'],
+    ['96910', 'GU'],
+    ['96950', 'MP'],
+    ['96941', 'FM'],
+    ['96960', 'MH'],
+    ['96940', 'PW'],
+    ['99501', 'AK'],
+    ['96801', 'HI'],
+  ])('%s is plausible for %s', (zip, state) => {
+    expect(zipPlausibleStates(zip)).toContain(state);
+  });
+
+  it('narrows to the ZIP state and its neighbours, not the whole digit band', () => {
+    const states = zipPlausibleStates('28746')!;
+    expect(states).toContain('NC');
+    // Land neighbours stay plausible so a border ZIP is never a false alarm.
+    expect(states).toContain('SC');
+    expect(states).toContain('TN');
+    expect(states).not.toContain('WA');
+    // Seattle: Oregon (neighbour) plausible, California no longer.
+    const wa = zipPlausibleStates('98103')!;
+    expect(wa).toContain('WA');
+    expect(wa).toContain('OR');
+    expect(wa).not.toContain('CA');
+  });
+
+  it('keeps cross-border ZIPs plausible for both states', () => {
+    // 42223 Fort Campbell straddles KY / TN.
+    expect(zipPlausibleStates('42223')).toContain('TN');
+    // 89439 straddles NV / CA.
+    expect(zipPlausibleStates('89439')).toContain('CA');
+  });
+
+  it('returns null (no confident rejection) for an unassigned prefix', () => {
+    expect(zipPlausibleStates('00001')).toBeNull();
+    expect(zipPlausibleStates('21300')).toBeNull();
+    expect(homesMatchZipState('00001', ['WA'])).toBe(true);
+  });
+
+  it('no longer rejects correct results for the previously-missing prefixes', () => {
+    expect(homesMatchZipState('88510', ['TX'])).toBe(true);
+    expect(homesMatchZipState('00501', ['NY'])).toBe(true);
+    expect(homesMatchZipState('96960', ['MH'])).toBe(true);
+    expect(homesMatchZipState('56901', ['DC'])).toBe(true);
+  });
+});
+
+describe('FIRST_DIGIT_TO_STATES — coarse table fixes (fleet-audit#660)', () => {
+  it('includes the prefixes the old table missed', () => {
+    expect(FIRST_DIGIT_TO_STATES['0']).toContain('NY');
+    expect(FIRST_DIGIT_TO_STATES['5']).toContain('DC');
+    expect(FIRST_DIGIT_TO_STATES['8']).toContain('TX');
+    for (const s of ['FM', 'MH', 'PW']) expect(FIRST_DIGIT_TO_STATES['9']).toContain(s);
+  });
+});
+
+describe('extractZipFromLocation — street numbers (fleet-audit#660)', () => {
+  it('does not read a 5-digit street number as the ZIP', () => {
+    expect(extractZipFromLocation('10001 Park Rd, Charlotte, NC')).toBeNull();
+  });
+
+  it('prefers the trailing ZIP over a 5-digit street number', () => {
+    expect(extractZipFromLocation('10001 Park Rd, Charlotte, NC 28202')).toBe(
+      '28202'
+    );
+    expect(
+      extractZipFromLocation('12345 N Main St, Charlotte, NC 28202-1234')
+    ).toBe('28202');
+  });
+
+  it('still reads a bare or trailing ZIP', () => {
+    expect(extractZipFromLocation('28746')).toBe('28746');
+    expect(extractZipFromLocation('28746, NC')).toBe('28746');
+    expect(extractZipFromLocation('Charlotte NC 28202')).toBe('28202');
+  });
+});
+
