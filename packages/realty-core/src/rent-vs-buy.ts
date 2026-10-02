@@ -62,6 +62,15 @@
  * their own `*_estimate_rent_vs_buy` tool description string.
  */
 
+import {
+  MAX_HORIZON_YEARS,
+  MAX_LOAN_TERM_YEARS,
+  requireNonNegative,
+  requireOptionalFinite,
+  requirePositive,
+  requireYears,
+} from './calculator-bounds.js';
+
 /** Inputs to `estimateRentVsBuy`. Match the cohort tool input schemas. */
 export interface RentVsBuyInput {
   /** Home purchase price in dollars. Must be positive. */
@@ -72,9 +81,9 @@ export interface RentVsBuyInput {
   interest_rate: number;
   /** Comparable monthly rent, dollars. Must be positive. */
   monthly_rent: number;
-  /** Projection horizon in years. Default 10. Must be positive. */
+  /** Projection horizon in years. Default 10. Whole number, 1..MAX_HORIZON_YEARS. */
   horizon_years?: number;
-  /** Loan term in years. Default 30. */
+  /** Loan term in years. Default 30. Whole number, 1..MAX_LOAN_TERM_YEARS. */
   loan_term_years?: number;
   /** Annual property tax as a percent of home value. Default 1.1. */
   property_tax_rate?: number;
@@ -167,22 +176,39 @@ export interface RentVsBuyResult {
  * Pure / deterministic — no I/O, no dependencies. Hoisted from the realty
  * cohort (zillow `computeRentVsBuy` + homes `estimateRentVsBuy`).
  *
- * @throws if `home_price <= 0`, `monthly_rent <= 0`, `down_payment < 0`,
- *   `interest_rate < 0`, or `horizon_years <= 0`.
+ * @throws if any numeric input is NaN / ±Infinity, `home_price <= 0`,
+ *   `monthly_rent <= 0`, `down_payment` is outside `0..home_price`,
+ *   `interest_rate < 0`, `horizon_years` is not a whole number in
+ *   `1..MAX_HORIZON_YEARS`, or `loan_term_years` is not a whole number in
+ *   `1..MAX_LOAN_TERM_YEARS`.
  */
 export function estimateRentVsBuy(input: RentVsBuyInput): RentVsBuyResult {
-  if (input.home_price <= 0) throw new Error('home_price must be positive');
-  if (input.monthly_rent <= 0)
-    throw new Error('monthly_rent must be positive');
-  if (input.down_payment < 0) throw new Error('down_payment must be >= 0');
-  if (input.interest_rate < 0)
-    throw new Error('interest_rate must be >= 0');
+  requirePositive('home_price', input.home_price);
+  requirePositive('monthly_rent', input.monthly_rent);
+  requireNonNegative('down_payment', input.down_payment);
+  if (input.down_payment > input.home_price)
+    throw new Error('down_payment must not exceed home_price');
+  requireNonNegative('interest_rate', input.interest_rate);
+  for (const field of [
+    'property_tax_rate',
+    'insurance_annual',
+    'hoa_monthly',
+    'closing_cost_rate',
+    'selling_cost_rate',
+    'maintenance_rate',
+    'appreciation_rate',
+    'rent_growth_rate',
+    'investment_return_rate',
+  ] as const)
+    requireOptionalFinite(field, input[field]);
 
+  // Bounded BEFORE the per-year loop: an unbounded horizon (e.g. 1e8) blocks
+  // the event loop and exhausts the heap (fleet-audit#1021).
   const horizon = input.horizon_years ?? 10;
-  if (horizon <= 0) throw new Error('horizon_years must be positive');
+  requireYears('horizon_years', horizon, MAX_HORIZON_YEARS);
 
   const term_years = input.loan_term_years ?? 30;
-  if (term_years <= 0) throw new Error('loan_term_years must be positive');
+  requireYears('loan_term_years', term_years, MAX_LOAN_TERM_YEARS);
 
   const tax_rate = (input.property_tax_rate ?? 1.1) / 100;
   const insurance = input.insurance_annual ?? 0;

@@ -21,6 +21,7 @@ export type {
 } from './affordability.js';
 
 export { calculateMortgage } from './mortgage.js';
+export { MAX_HORIZON_YEARS, MAX_LOAN_TERM_YEARS } from './calculator-bounds.js';
 export type { MortgageInput, MortgageBreakdown } from './mortgage.js';
 
 export { sqftToAcres, SQFT_PER_ACRE } from './sqft-acres.js';

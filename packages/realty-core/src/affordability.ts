@@ -35,6 +35,14 @@
  * own `*_calculate_affordability` tool description string.
  */
 
+import {
+  MAX_LOAN_TERM_YEARS,
+  requireNonNegative,
+  requireOptionalFinite,
+  requirePositive,
+  requireYears,
+} from './calculator-bounds.js';
+
 export interface AffordabilityInput {
   /** Borrower's gross monthly income, dollars. Must be > 0. */
   monthly_income: number;
@@ -76,18 +84,25 @@ export interface AffordabilityResult {
  * Solve for the maximum home price the borrower can afford under the
  * 28/36 DTI rule (or custom DTI caps via `front_end_dti` / `back_end_dti`).
  *
- * @throws if `monthly_income <= 0`, `down_payment < 0`, or `interest_rate < 0`.
+ * @throws if any numeric input is NaN / ±Infinity, `monthly_income <= 0`,
+ *   `down_payment < 0`, `interest_rate < 0`, or `loan_term_years` is not a
+ *   whole number in `1..MAX_LOAN_TERM_YEARS`.
  */
 export function calculateAffordability(
   input: AffordabilityInput
 ): AffordabilityResult {
-  if (input.monthly_income <= 0)
-    throw new Error('monthly_income must be positive');
-  if (input.down_payment < 0) throw new Error('down_payment must be >= 0');
-  if (input.interest_rate < 0)
-    throw new Error('interest_rate must be >= 0');
+  requirePositive('monthly_income', input.monthly_income);
+  requireNonNegative('down_payment', input.down_payment);
+  requireNonNegative('interest_rate', input.interest_rate);
+  requireOptionalFinite('monthly_debts', input.monthly_debts);
+  requireOptionalFinite('property_tax_rate', input.property_tax_rate);
+  requireOptionalFinite('insurance_annual', input.insurance_annual);
+  requireOptionalFinite('hoa_monthly', input.hoa_monthly);
+  requireOptionalFinite('front_end_dti', input.front_end_dti);
+  requireOptionalFinite('back_end_dti', input.back_end_dti);
 
   const term_years = input.loan_term_years ?? 30;
+  requireYears('loan_term_years', term_years, MAX_LOAN_TERM_YEARS);
   const monthly_debts = input.monthly_debts ?? 0;
   const front_dti = input.front_end_dti ?? 0.28;
   const back_dti = input.back_end_dti ?? 0.36;

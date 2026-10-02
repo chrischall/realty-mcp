@@ -34,9 +34,19 @@
  *  7. Output shape carries the zillow union (most complete) plus
  *     `home_price` (echoed from input, matches the compass/homes/
  *     onehome variant) so each cohort wrapper can map cleanly.
- *  8. Validation: `home_price` must be positive, `interest_rate` must
- *     be non-negative, `loan_term_years` must be positive.
+ *  8. Validation: every numeric input must be finite; `home_price` must
+ *     be positive, `interest_rate` non-negative, `loan_term_years` a whole
+ *     number in `1..MAX_LOAN_TERM_YEARS`, and the down payment within
+ *     `0..home_price`.
  */
+
+import {
+  MAX_LOAN_TERM_YEARS,
+  requireNonNegative,
+  requireOptionalFinite,
+  requirePositive,
+  requireYears,
+} from './calculator-bounds.js';
 
 /**
  * Inputs to `calculateMortgage`. Match the cohort's
@@ -106,16 +116,17 @@ export interface MortgageBreakdown {
  * (zillow/redfin/compass/homes/onehome).
  */
 export function calculateMortgage(input: MortgageInput): MortgageBreakdown {
-  if (input.home_price <= 0) {
-    throw new Error('home_price must be positive');
-  }
-  if (input.interest_rate < 0) {
-    throw new Error('interest_rate must be non-negative');
-  }
+  requirePositive('home_price', input.home_price);
+  requireNonNegative('interest_rate', input.interest_rate);
+  requireOptionalFinite('down_payment', input.down_payment);
+  requireOptionalFinite('down_payment_percent', input.down_payment_percent);
+  requireOptionalFinite('property_tax_annual', input.property_tax_annual);
+  requireOptionalFinite('property_tax_rate', input.property_tax_rate);
+  requireOptionalFinite('insurance_annual', input.insurance_annual);
+  requireOptionalFinite('hoa_monthly', input.hoa_monthly);
+  requireOptionalFinite('pmi_rate', input.pmi_rate);
   const term_years = input.loan_term_years ?? 30;
-  if (term_years <= 0) {
-    throw new Error('loan_term_years must be positive');
-  }
+  requireYears('loan_term_years', term_years, MAX_LOAN_TERM_YEARS);
 
   // down_payment wins over down_payment_percent (zillow precedence).
   // Falls back to 20% when neither is provided.
@@ -127,6 +138,9 @@ export function calculateMortgage(input: MortgageInput): MortgageBreakdown {
         : input.home_price * 0.2;
   if (down < 0) {
     throw new Error('down_payment must be non-negative');
+  }
+  if (down > input.home_price) {
+    throw new Error('down_payment must not exceed home_price');
   }
   const loan = Math.max(0, input.home_price - down);
 
