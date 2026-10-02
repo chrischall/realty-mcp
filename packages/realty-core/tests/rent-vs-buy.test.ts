@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { estimateRentVsBuy } from '../src/rent-vs-buy.js';
+import {
+  estimateRentVsBuy,
+  type RentVsBuyResult,
+  type RentVsBuyYear,
+} from '../src/rent-vs-buy.js';
+
+/**
+ * `r.years[i]` under `noUncheckedIndexedAccess`: fail with the index rather
+ * than an opaque "cannot read properties of undefined" when a projection is
+ * shorter than the test assumes.
+ */
+function yearAt(r: RentVsBuyResult, i: number): RentVsBuyYear {
+  const y = r.years[i];
+  if (y === undefined) {
+    throw new Error(`no projection year at index ${i} (got ${r.years.length})`);
+  }
+  return y;
+}
 
 describe('estimateRentVsBuy', () => {
   it('returns a year-by-year projection of the requested horizon length', () => {
@@ -62,7 +79,7 @@ describe('estimateRentVsBuy', () => {
       insurance_annual: 0,
       hoa_monthly: 0,
     });
-    const y1 = r.years[0];
+    const y1 = yearAt(r, 0);
     // Home value after 1 year of 3% appreciation: 500_000 * 1.03 = 515_000.
     expect(y1.home_value).toBeCloseTo(515_000, 0);
     // Loan = 400_000 @ 6%/30y. Monthly P&I = 400000*r*(1+r)^n/((1+r)^n-1)
@@ -89,12 +106,12 @@ describe('estimateRentVsBuy', () => {
       horizon_years: 15,
     });
     for (let i = 1; i < r.years.length; i++) {
-      expect(r.years[i].home_value).toBeGreaterThan(
-        r.years[i - 1].home_value
+      expect(yearAt(r, i).home_value).toBeGreaterThan(
+        yearAt(r, i - 1).home_value
       );
       // remaining mortgage strictly amortizes down each year
-      expect(r.years[i].remaining_mortgage).toBeLessThan(
-        r.years[i - 1].remaining_mortgage
+      expect(yearAt(r, i).remaining_mortgage).toBeLessThan(
+        yearAt(r, i - 1).remaining_mortgage
       );
     }
   });
@@ -115,13 +132,13 @@ describe('estimateRentVsBuy', () => {
     expect(r.break_even_year!).toBeGreaterThan(0);
     expect(r.break_even_year!).toBeLessThanOrEqual(30);
     // At the break-even year, buy cumulative cost <= rent cumulative cost.
-    const be = r.years[r.break_even_year! - 1];
+    const be = yearAt(r, r.break_even_year! - 1);
     expect(be.cumulative_buy_cost).toBeLessThanOrEqual(
       be.cumulative_rent_cost
     );
     // ...and the prior year, buying had NOT yet won.
     if (r.break_even_year! > 1) {
-      const prev = r.years[r.break_even_year! - 2];
+      const prev = yearAt(r, r.break_even_year! - 2);
       expect(prev.cumulative_buy_cost).toBeGreaterThan(
         prev.cumulative_rent_cost
       );
@@ -139,8 +156,8 @@ describe('estimateRentVsBuy', () => {
       horizon_years: 10,
     });
     expect(r.break_even_year).toBe(1);
-    expect(r.years[0].cumulative_buy_cost).toBeLessThanOrEqual(
-      r.years[0].cumulative_rent_cost
+    expect(yearAt(r, 0).cumulative_buy_cost).toBeLessThanOrEqual(
+      yearAt(r, 0).cumulative_rent_cost
     );
   });
 
@@ -205,7 +222,7 @@ describe('estimateRentVsBuy', () => {
       horizon_years: 5,
     });
     // Year-1 home value uses the 3% appreciation default.
-    expect(r.years[0].home_value).toBeCloseTo(515_000, 0);
+    expect(yearAt(r, 0).home_value).toBeCloseTo(515_000, 0);
     // Closing cost default 2.5% of 500k = 12_500 is folded into year-1
     // gross outflow, so equity is well below the cash already sunk.
     expect(r.inputs.closing_cost_rate).toBe(2.5);
@@ -222,7 +239,7 @@ describe('estimateRentVsBuy', () => {
     });
     // r=0 → straight-line: 360_000 / 360 months = $1000/mo principal.
     // After 1 year (12 payments) the balance drops by exactly $12,000.
-    expect(r.years[0].remaining_mortgage).toBeCloseTo(348_000, 0);
+    expect(yearAt(r, 0).remaining_mortgage).toBeCloseTo(348_000, 0);
   });
 
   it('throws when home_price is not positive', () => {
@@ -325,16 +342,16 @@ describe('estimateRentVsBuy', () => {
     });
 
     // The loan is paid off by end of year 1.
-    expect(r.years[0].remaining_mortgage).toBeCloseTo(0, 6);
-    expect(r.years[1].remaining_mortgage).toBeCloseTo(0, 6);
-    expect(r.years[2].remaining_mortgage).toBeCloseTo(0, 6);
+    expect(yearAt(r, 0).remaining_mortgage).toBeCloseTo(0, 6);
+    expect(yearAt(r, 1).remaining_mortgage).toBeCloseTo(0, 6);
+    expect(yearAt(r, 2).remaining_mortgage).toBeCloseTo(0, 6);
 
     // Reconstruct the gross outflow per year by adding equity back to the
     // net cumulative_buy_cost. The year-over-year delta in gross outflow for
     // years 2 and 3 must be the non-P&I carrying costs ONLY (no phantom
     // $120k/yr mortgage payment).
     const grossOutflow = (i: number) =>
-      r.years[i].cumulative_buy_cost + r.years[i].equity_if_sold_now;
+      yearAt(r, i).cumulative_buy_cost + yearAt(r, i).equity_if_sold_now;
 
     // Non-P&I carrying costs for a year, charged on that year's opening
     // home value (default tax 1.1%, maintenance 1%; insurance/HOA = 0).

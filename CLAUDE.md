@@ -41,9 +41,9 @@ has a sibling vitest in `packages/realty-core/tests/`.
 
 | | |
 |---|---|
-| `npm test` | Vitest across all workspaces. Must stay green. |
+| `npm test` | `npm run typecheck`, then vitest across all workspaces. Must stay green. |
 | `npm run build` | TS build for every workspace. |
-| `npm run typecheck` | `tsc -b` against `realty-core`. |
+| `npm run typecheck` | `tsc -b` against `realty-core`, then `tsc -p packages/realty-core/tsconfig.check.json` (src **and** tests, no emit — vitest never typechecks). |
 | `npm test --workspace=@chrischall/realty-core` | Run just the core package's tests. |
 | `npm run release:core` | Manual publish of `@chrischall/realty-core` (rare — release-please normally owns this). Uses `publishConfig` from the package. |
 

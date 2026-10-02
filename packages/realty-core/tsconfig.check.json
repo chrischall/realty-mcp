@@ -1,0 +1,18 @@
+{
+  // Typechecks the TESTS as well as the source.
+  //
+  // tsconfig.json (the build) is `rootDir: src` / `include: src/**`, so
+  // `tests/` was never seen by tsc — and vitest transpiles with esbuild, which
+  // does no type checking at all. Between the two, 22 `noUncheckedIndexedAccess`
+  // errors sat in rent-vs-buy.test.ts with CI green (fleet-audit #663).
+  //
+  // Separate from tsconfig.json rather than folded into it because widening
+  // `include` there would drag tests into `outDir` and the published `dist`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}
