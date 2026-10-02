@@ -78,6 +78,66 @@ describe('LocalityAliasMap.fromJSON', () => {
   });
 });
 
+// zillow-mcp's documented ZILLOW_LOCALITY_ALIASES_FILE format (mint.yaml):
+// a top-level array of state-less [a, b] pairs, registered both ways.
+// Accepting it lets zillow drop its local loader without breaking existing
+// config files (chrischall/fleet-audit#1144).
+describe('LocalityAliasMap.fromJSON — legacy [a, b] pair format', () => {
+  const pairs = [
+    ['Lake Lure', 'Rutherfordton'],
+    ['Beech Mountain', 'Banner Elk'],
+    ['Sugar Mountain', 'Banner Elk'],
+  ];
+
+  it('registers each pair both ways, with no resolved parent', () => {
+    const map = LocalityAliasMap.fromJSON(pairs);
+    expect(map.lookup({ city: 'Lake Lure', state: 'NC' })).toEqual({ aliases: ['Rutherfordton'], resolved: null });
+    expect(map.lookup({ city: 'Rutherfordton', state: 'NC' })).toEqual({ aliases: ['Lake Lure'], resolved: null });
+  });
+
+  it('collects every partner of a shared city, in file order, without duplicates', () => {
+    const map = LocalityAliasMap.fromJSON([...pairs, ['Beech Mountain', 'Banner Elk']]);
+    expect(map.lookup({ city: 'Banner Elk', state: 'NC' }).aliases).toEqual(['Beech Mountain', 'Sugar Mountain']);
+    expect(map.lookup({ city: 'Beech Mountain', state: 'NC' }).aliases).toEqual(['Banner Elk']);
+  });
+
+  it('merges partners of the same city however the file spells it', () => {
+    const map = LocalityAliasMap.fromJSON([['Banner Elk', 'Beech Mountain'], ['banner elk ', 'Sugar Mountain']]);
+    expect(map.lookup({ city: 'BANNER ELK', state: 'NC' }).aliases).toEqual(['Beech Mountain', 'Sugar Mountain']);
+  });
+
+  it('matches a state-less pair whatever the state — including none', () => {
+    const map = LocalityAliasMap.fromJSON(pairs);
+    expect(map.lookup({ city: 'lake lure', state: 'SC' }).aliases).toEqual(['Rutherfordton']);
+    expect(map.lookup({ city: ' Lake Lure ', state: '' }).aliases).toEqual(['Rutherfordton']);
+  });
+
+  it('an empty array is an empty map', () => {
+    expect(LocalityAliasMap.fromJSON([]).lookup({ city: 'Lake Lure', state: 'NC' })).toEqual({
+      aliases: [],
+      resolved: null,
+    });
+  });
+
+  it.each([
+    ['a non-array pair', [{ a: 1 }], /\[0\] must be a \[string, string\] pair/],
+    ['a one-element pair', [['Lake Lure']], /\[0\] must be a \[string, string\] pair/],
+    ['a three-element pair', [['a', 'b', 'c']], /\[0\] must be a \[string, string\] pair/],
+    ['a non-string member', [['ok', 'fine'], ['Lake Lure', 3]], /\[1\] must be a \[string, string\] pair/],
+  ])('rejects %s with a TypeError naming the bad pair', (_label, input, msg) => {
+    expect(() => LocalityAliasMap.fromJSON(input)).toThrow(TypeError);
+    expect(() => LocalityAliasMap.fromJSON(input)).toThrow(msg);
+  });
+
+  it('loads the legacy format from a file too', () => {
+    const path = join(tmpdir(), `locality-legacy-${Date.now()}.json`);
+    writeFileSync(path, JSON.stringify([['Lake Lure', 'Rutherfordton']]));
+    expect(LocalityAliasMap.fromFile(path).lookup({ city: 'Rutherfordton', state: 'NC' }).aliases).toEqual([
+      'Lake Lure',
+    ]);
+  });
+});
+
 describe('LocalityAliasMap.fromFile', () => {
   it('loads aliases from a JSON file', () => {
     const path = join(tmpdir(), `locality-${Date.now()}.json`);
