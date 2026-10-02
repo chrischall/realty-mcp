@@ -33,9 +33,39 @@ export interface LocalityLookup {
 
 interface AliasEntry {
   city: string;
-  state: string;
+  /** `null` for a state-less legacy pair: it matches the city in any state. */
+  state: string | null;
   aliases: string[];
   resolved?: string;
+}
+
+/**
+ * zillow-mcp's documented `ZILLOW_LOCALITY_ALIASES_FILE` format: a top-level
+ * array of state-less `[a, b]` pairs, each registered BOTH ways
+ * (`[["Lake Lure", "Rutherfordton"]]` aliases each to the other). A pair does
+ * not say which side is the parent, so no `resolved` is set. Partners of a
+ * shared city collect in file order, de-duplicated (zillow's `buildAliasMap`).
+ */
+function parseLegacyPairs(doc: unknown[]): AliasEntry[] {
+  const byCity = new Map<string, AliasEntry>();
+  const add = (city: string, alias: string): void => {
+    const key = city.toLowerCase().trim();
+    let entry = byCity.get(key);
+    if (!entry) {
+      entry = { city, state: null, aliases: [] };
+      byCity.set(key, entry);
+    }
+    if (!entry.aliases.includes(alias)) entry.aliases.push(alias);
+  };
+  doc.forEach((pair: unknown, i) => {
+    if (!Array.isArray(pair) || pair.length !== 2 || !pair.every((s) => typeof s === 'string')) {
+      throw new TypeError(`LocalityAliasMap: [${i}] must be a [string, string] pair`);
+    }
+    const [a, b] = pair as [string, string];
+    add(a, b);
+    add(b, a);
+  });
+  return [...byCity.values()];
 }
 
 /**
@@ -45,9 +75,11 @@ interface AliasEntry {
  * key normaliser.
  */
 function parseAliasDocument(doc: unknown): AliasEntry[] {
-  if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+  if (Array.isArray(doc)) return parseLegacyPairs(doc);
+  if (typeof doc !== 'object' || doc === null) {
     throw new TypeError(
-      'LocalityAliasMap: expected an object of shape { entries: [...] }'
+      'LocalityAliasMap: expected an object of shape { entries: [...] } ' +
+        'or an array of [a, b] pairs'
     );
   }
   const entries = (doc as { entries?: unknown }).entries;
@@ -100,8 +132,10 @@ const DEFAULT_ENTRIES: AliasEntry[] = [
   },
 ];
 
-function normKey(k: LocalityKey): string {
-  return `${k.city.toLowerCase().trim()}|${k.state.toLowerCase().trim()}`;
+/** Index key; a state-less entry is filed under the state `*`. */
+function normKey(k: { city: string; state: string | null }): string {
+  const state = k.state === null ? '*' : k.state.toLowerCase().trim();
+  return `${k.city.toLowerCase().trim()}|${state}`;
 }
 
 export class LocalityAliasMap {
@@ -139,6 +173,14 @@ export class LocalityAliasMap {
    *
    * A missing `entries` yields an empty map; a malformed document throws a
    * `TypeError` naming the bad field.
+   *
+   * Also accepts zillow-mcp's legacy `ZILLOW_LOCALITY_ALIASES_FILE` format —
+   * a top-level array of state-less `[a, b]` pairs, registered both ways and
+   * matched in any state (`resolved` is `null`):
+   *
+   * ```json
+   * [["Lake Lure", "Rutherfordton"], ["Beech Mountain", "Banner Elk"]]
+   * ```
    */
   static fromJSON(doc: unknown): LocalityAliasMap {
     return new LocalityAliasMap(parseAliasDocument(doc));
@@ -169,7 +211,8 @@ export class LocalityAliasMap {
    * a `resolved` parent locality when the alias chain converges.
    */
   lookup(key: LocalityKey): LocalityLookup {
-    const hit = this.index.get(normKey(key));
+    // A state-specific entry first; then a state-less legacy pair for the city.
+    const hit = this.index.get(normKey(key)) ?? this.index.get(normKey({ city: key.city, state: null }));
     if (!hit) return { aliases: [], resolved: null };
     return { aliases: [...hit.aliases], resolved: hit.resolved };
   }
