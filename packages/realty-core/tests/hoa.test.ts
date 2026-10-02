@@ -91,10 +91,28 @@ describe('hoaToMonthlyUsd', () => {
       expect(hoaToMonthlyUsd(250, '')).toBeNull();
     });
 
-    it('returns null (with a stderr warning) for an unparseable frequency', () => {
+    it('returns null for an unparseable frequency without writing to the console', () => {
       const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
       expect(hoaToMonthlyUsd(250, 'per fortnight')).toBeNull();
-      expect(spy).toHaveBeenCalledOnce();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('reports an unparseable frequency through the injected onUnknownFrequency', () => {
+      const seen: string[] = [];
+      expect(
+        hoaToMonthlyUsd(250, 'per fortnight', {
+          onUnknownFrequency: (f) => seen.push(f),
+        })
+      ).toBeNull();
+      expect(seen).toEqual(['per fortnight']);
+    });
+
+    it('does not call onUnknownFrequency for a recognised or missing frequency', () => {
+      const onUnknownFrequency = vi.fn();
+      expect(hoaToMonthlyUsd(1200, 'Annually', { onUnknownFrequency })).toBe(100);
+      expect(hoaToMonthlyUsd(250, null, { onUnknownFrequency })).toBeNull();
+      expect(hoaToMonthlyUsd(0, 'nonsense', { onUnknownFrequency })).toBeNull();
+      expect(onUnknownFrequency).not.toHaveBeenCalled();
     });
   });
 });

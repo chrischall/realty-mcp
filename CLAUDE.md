@@ -90,6 +90,12 @@ deduplication of records returned by multiple portals.
 - Don't add a dependency to `realty-core`. It's peer-dep-free and stays
   that way — every consumer is itself a published MCP and dragging in
   transitive deps via a shared lib forces their hand.
+- Don't import a Node builtin (`node:fs` & co.) at module top or write to
+  the console from `realty-core`. Importing it must do no I/O — Workers
+  consumers would need `nodejs_compat` otherwise. Take a callback (see
+  `hoaToMonthlyUsd`'s `onUnknownFrequency`) or already-parsed data (see
+  `LocalityAliasMap.fromJSON`) instead. `tests/no-io.test.ts` enforces it
+  against the built dist.
 - Don't bake portal-specific magic strings into `realty-core`. If
   Zillow has a quirk about slug format, that lives in zillow-mcp.
 - Don't manually bump versions or arm `ready-to-merge` to bypass
