@@ -126,32 +126,88 @@ export function expandSuffix(address: string): string[] {
 }
 
 /**
- * Generate "Bluebird" ↔ "Blue Bird"-style variants. For each token in
- * the street portion of length >= 6, emit splits at every position
- * that yields two >=3-char alphabetic halves. The right half is
- * title-cased so casing stays plausible across both branches. For
- * multi-token streets, also emit a join variant for each adjacent
- * alphabetic pair, preserving the left token's casing on the join.
+ * Words a compound street name is plausibly built from. A split is only
+ * emitted when BOTH halves are in this set (or are a street-suffix full
+ * form such as "View" / "Mountain"), so "Bluebird" → "Blue Bird" and
+ * "Mountainview" → "Mountain View" survive while "Mou Ntainview" and
+ * "Bou Levard" don't (fleet-audit#665).
+ */
+const COMPOUND_WORDS = new Set<string>([
+  // colours / light
+  'blue', 'red', 'green', 'white', 'black', 'gray', 'grey', 'silver', 'gold',
+  'golden', 'sun', 'sunny', 'moon', 'star', 'sky', 'shadow', 'shady',
+  // seasons / weather
+  'spring', 'summer', 'winter', 'autumn', 'snow', 'rain', 'wind', 'windy',
+  'storm', 'frost',
+  // trees / plants
+  'oak', 'pine', 'elm', 'ash', 'birch', 'cedar', 'maple', 'willow', 'cherry',
+  'apple', 'peach', 'plum', 'rose', 'lily', 'ivy', 'fern', 'laurel', 'holly',
+  'hazel', 'aspen', 'cypress', 'magnolia', 'poplar', 'spruce', 'walnut',
+  'chestnut', 'berry', 'briar', 'thorn', 'flower', 'tree', 'leaf', 'moss',
+  'grass', 'clover', 'heather',
+  // animals
+  'bird', 'bear', 'deer', 'fox', 'wolf', 'hawk', 'eagle', 'owl', 'crow',
+  'raven', 'robin', 'wren', 'dove', 'swan', 'duck', 'quail', 'lark',
+  'falcon', 'elk', 'buck', 'doe', 'stag', 'fawn', 'turkey', 'beaver',
+  'otter', 'rabbit', 'squirrel', 'horse', 'pony', 'colt', 'bee',
+  // land / water
+  'wood', 'woods', 'forest', 'field', 'fields', 'meadow', 'meadows', 'brook',
+  'creek', 'river', 'lake', 'pond', 'water', 'falls', 'bay', 'shore',
+  'beach', 'sand', 'rock', 'rocky', 'stone', 'hill', 'hills', 'ridge',
+  'crest', 'peak', 'top', 'side', 'dale', 'glen', 'vale', 'hollow', 'land',
+  'lands', 'moor', 'marsh', 'island', 'cove', 'harbor', 'haven', 'port',
+  'ford', 'bend', 'springs', 'well', 'mill', 'farm', 'ranch',
+  'orchard', 'garden', 'gardens', 'grove', 'park', 'gate', 'bridge',
+  'cross',
+  // compass / position
+  'north', 'south', 'east', 'west', 'high', 'low', 'upper', 'lower', 'over',
+  'under', 'long', 'far', 'fair', 'mid', 'middle', 'new', 'old', 'big',
+  'little', 'great', 'deep', 'clear', 'sweet', 'quiet', 'hidden', 'lone',
+  'twin', 'king', 'queen', 'royal', 'crown', 'castle', 'church', 'chapel',
+  'home', 'shire', 'fire', 'iron', 'copper', 'cotton', 'hunt', 'hunter',
+  'sleepy', 'wild', 'whisper', 'whispering', 'echo', 'misty', 'mist',
+]);
+
+/** Lower-cased suffix words (both forms) — never split or joined onto. */
+const SUFFIX_WORDS = new Set<string>([...ABBR_TO_FULL.keys(), ...FULL_TO_ABBR.keys()]);
+
+function isCompoundWord(w: string): boolean {
+  const lower = w.toLowerCase();
+  return COMPOUND_WORDS.has(lower) || FULL_TO_ABBR.has(lower);
+}
+
+/**
+ * Generate "Bluebird" ↔ "Blue Bird"-style variants.
  *
- * Deliberately greedy (returns every viable split) — the address-match
- * scorer at the consumer end is cheap and the resolver tries variants
- * in order. False positives cost one extra resolver call; missing a
- * variant costs a wrong/missed result.
+ * Splits: a street-name token of length >= 6 is split where BOTH halves
+ * are known compound words (see `COMPOUND_WORDS`, plus the street-suffix
+ * full forms). The right half is title-cased so casing stays plausible.
+ * Joins: each adjacent alphabetic pair (>= 3 chars each) is joined, with
+ * the left token's casing preserved.
+ *
+ * Street-suffix words ("Boulevard", "Road", "Mtn") are never split, and a
+ * name is never joined onto the trailing suffix ("Mallard Road" ↛
+ * "Mallardroad"). Each emitted variant can become a resolver round-trip
+ * against a rate-limited portal, so this favours precision over recall
+ * (fleet-audit#665).
  */
 export function compoundSplits(address: string): string[] {
   if (!address) return [];
   const { street, remainder } = splitStreetFromRemainder(address);
   const out = new Set<string>();
   const tokens = street.trim().split(/\s+/);
+  const isSuffix = (tok: string) => SUFFIX_WORDS.has(tok.toLowerCase());
 
   // Splits.
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
     if (!tok || tok.length < 6) continue;
     if (!/^[A-Za-z]+$/.test(tok)) continue;
+    if (isSuffix(tok)) continue;
     for (let j = 3; j <= tok.length - 3; j++) {
       const left = tok.slice(0, j);
       const rightRaw = tok.slice(j);
+      if (!isCompoundWord(left) || !isCompoundWord(rightRaw)) continue;
       // Title-case the right half so "Bluebird" → "Blue Bird" rather
       // than "Blue bird". Matches how a human writes the compound out.
       const right =
@@ -169,6 +225,8 @@ export function compoundSplits(address: string): string[] {
     if (!a || !b) continue;
     if (!/^[A-Za-z]+$/.test(a) || !/^[A-Za-z]+$/.test(b)) continue;
     if (a.length < 3 || b.length < 3) continue;
+    // Never glue the street name onto its trailing suffix.
+    if (i + 1 === tokens.length - 1 && isSuffix(b)) continue;
     // Lower-case the second half on join so "Blue Bird" → "Bluebird"
     // (not "BlueBird"). Matches the typical USPS canonical form.
     const joined = a + b[0]!.toLowerCase() + b.slice(1).toLowerCase();

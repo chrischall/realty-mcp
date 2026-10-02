@@ -109,6 +109,31 @@ describe('compoundSplits', () => {
   it('returns empty when nothing to split/join', () => {
     expect(compoundSplits('126 Main St')).toEqual([]);
   });
+
+  // fleet-audit#665: every junk split is a resolver round-trip against a
+  // rate-limited / DataDome-walled portal.
+  it('splits only at a boundary where both halves are known words', () => {
+    expect(compoundSplits('123 Mountainview Lane')).toEqual([
+      '123 Mountain View Lane',
+    ]);
+    expect(compoundSplits('123 Bluebird Lane')).toEqual(['123 Blue Bird Lane']);
+  });
+
+  it('emits nothing for a token with no known-word boundary', () => {
+    expect(compoundSplits('123 Hamilton Lane')).toEqual([]);
+  });
+
+  it('never splits a street-suffix word', () => {
+    expect(compoundSplits('123 Main Boulevard')).toEqual([]);
+    // "Mountain" mid-name is a suffix word too: joinable, never split.
+    expect(compoundSplits('9 Mountain Laurel Dr')).toEqual([
+      '9 Mountainlaurel Dr',
+    ]);
+  });
+
+  it('never joins a name onto the trailing street suffix', () => {
+    expect(compoundSplits('268 Mallard Road')).toEqual([]);
+  });
 });
 
 describe('buildVariants', () => {
@@ -118,6 +143,15 @@ describe('buildVariants', () => {
     expect(variants).toContain('123 Bluebird Road');
     expect(variants).toContain('123 Blue Bird Rd');
     expect(new Set(variants).size).toBe(variants.length);
+  });
+
+  it('emits only plausible variants for an ordinary address (fleet-audit#665)', () => {
+    expect(buildVariants('123 Mountainview Boulevard, Banner Elk, NC')).toEqual([
+      '123 Mountainview Boulevard, Banner Elk, NC',
+      '123 Mountainview Blvd, Banner Elk, NC',
+      '123 Mountain View Boulevard, Banner Elk, NC',
+      '123 Mountain View Blvd, Banner Elk, NC',
+    ]);
   });
 
   it('always includes the original as the first entry', () => {
