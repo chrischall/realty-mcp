@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/chrischall/realty-mcp/compare/v0.4.8...v0.5.0) (2026-10-02)
+
+
+### Features
+
+* **realty-core:** hoist cohort tool registrars, row-batch envelope, compare pivot, view helpers and sold-price stats ([#71](https://github.com/chrischall/realty-mcp/issues/71)) ([3bd4a48](https://github.com/chrischall/realty-mcp/commit/3bd4a48014672d77e8018863b55fe99d1542c24d))
+
 ## [0.4.8](https://github.com/chrischall/realty-mcp/compare/v0.4.7...v0.4.8) (2026-09-24)
 
 
