@@ -45,7 +45,7 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: npm run build --workspace=@chrischall/realty-core
 
-      - name: Test (full monorepo via vitest)
+      - name: Typecheck (src + tests) and test (full monorepo via vitest)
         if: steps.gate.outputs.run == 'true'
         run: npm test
 
