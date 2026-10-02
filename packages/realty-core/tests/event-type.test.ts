@@ -113,4 +113,23 @@ describe('mapEventType', () => {
     ];
     expect(all).toHaveLength(9);
   });
+
+  // fleet-audit#662
+  it('maps "Unlisted" to Delisted, not Listed', () => {
+    expect(mapEventType('Unlisted')).toBe('Delisted');
+    expect(mapEventType('Listing unlisted by agent')).toBe('Delisted');
+  });
+
+  it('maps "Back on market" to Relisted', () => {
+    expect(mapEventType('Back on market')).toBe('Relisted');
+    expect(mapEventType('Back on the Market')).toBe('Relisted');
+    expect(mapEventType('Back-on-market')).toBe('Relisted');
+  });
+
+  it('matches "listed" only as a whole word', () => {
+    expect(mapEventType('Listed')).toBe('Listed');
+    expect(mapEventType('Listed for sale')).toBe('Listed');
+    expect(mapEventType('Pre-listed')).toBe('Listed');
+  });
 });
+
