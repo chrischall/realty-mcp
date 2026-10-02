@@ -17,10 +17,14 @@
  *  - `"123 Main St, Brooklyn, NY, 11201"`         (ZIP as its own part)
  *  - `"123 Main St, Brooklyn, NY 11201, USA"`     (country trailer)
  *
- * With three or more parts, state / ZIP come from the LAST part and the
- * city from the part before it (or from the last part's leading words, as
- * in `"Brooklyn NY 11201"`). Any segments in between — unit / suite
- * lines — are folded into `address` (fleet-audit#659).
+ *  - `"123 Main St, Apt 4, Brooklyn, 11201"`      (unit + state-less ZIP)
+ *  - `"123 Main St, Brooklyn, New York 11201"`    (spelled-out state)
+ *
+ * Parsed from the END: a trailing ZIP, then a state (code, or a spelled-out
+ * name when enough parts remain to still hold a city), then the city —
+ * either the last part's leading words (`"Brooklyn NY 11201"`) or the
+ * part before. Everything left — street plus any unit / suite lines — is
+ * the `address` (fleet-audit#659).
  *
  * Returns an empty object for empty / whitespace-only input.
  */
@@ -28,6 +32,27 @@
 const ZIP_RE = /^\d{5}(?:-\d{4})?$/;
 const STATE_RE = /^[A-Za-z]{2}$/;
 const COUNTRY_RE = /^(?:USA?|U\.S\.A?\.?|United States(?: of America)?)$/i;
+
+/** Spelled-out state / DC names → USPS codes. */
+const STATE_NAMES: Record<string, string> = {
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
+  colorado: 'CO', connecticut: 'CT', delaware: 'DE', 'district of columbia': 'DC',
+  florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL',
+  indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA',
+  maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI',
+  minnesota: 'MN', mississippi: 'MS', missouri: 'MO', montana: 'MT',
+  nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC',
+  'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR',
+  pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT',
+  vermont: 'VT', virginia: 'VA', washington: 'WA', 'west virginia': 'WV',
+  wisconsin: 'WI', wyoming: 'WY', 'puerto rico': 'PR',
+};
+
+function stateName(words: string): string | undefined {
+  return STATE_NAMES[words.toLowerCase().replace(/\s+/g, ' ')];
+}
 
 export interface ParsedAddress {
   address?: string;
@@ -43,38 +68,51 @@ export function parseAddress(freetext: string): ParsedAddress {
   const parts = text.split(',').map((s) => s.trim()).filter(Boolean);
   // A trailing country segment carries no locality.
   if (parts.length > 1 && COUNTRY_RE.test(parts[parts.length - 1]!)) parts.pop();
-  // "…, NY, 11201": rejoin a bare trailing ZIP onto the state before it.
-  if (parts.length >= 3 && ZIP_RE.test(parts[parts.length - 1]!)) {
-    const zip = parts.pop()!;
-    parts[parts.length - 1] = `${parts[parts.length - 1]} ${zip}`;
-  }
   if (parts.length === 0) return {};
-
   // No comma — everything is the street address.
-  if (parts.length === 1) {
-    return { address: parts[0] };
-  }
+  if (parts.length === 1) return { address: parts[0] };
 
   const out: ParsedAddress = {};
-  const tail = consumeStateAndZip(parts[parts.length - 1]!.split(/\s+/), out);
+  const last = () => parts[parts.length - 1]!;
 
-  // One-comma form: "ADDRESS, CITY STATE [ZIP]".
-  if (parts.length === 2) {
-    out.address = parts[0];
-    if (tail.length > 0) out.city = tail.join(' ');
-    return out;
+  // 1. A ZIP given as its own trailing part.
+  if (ZIP_RE.test(last())) out.zip = parts.pop();
+
+  // 2. A state given as its own part: a 2-letter code, or a spelled-out
+  //    name only right before a ZIP and when a city AND a street still
+  //    precede it — "123 Main St, New York" and "…, Apt 4, Washington" keep
+  //    the name as the city.
+  if (parts.length >= 2 && STATE_RE.test(last())) {
+    out.state = parts.pop()!.toUpperCase();
+  } else if (out.zip !== undefined && parts.length >= 3 && stateName(last())) {
+    out.state = stateName(parts.pop()!);
   }
 
-  // Three or more parts. The last part's leftover words are the city when
-  // it is "CITY STATE [ZIP]", or the whole last part is the city when it
-  // carries no state / ZIP at all. Otherwise (a bare "STATE [ZIP]", or a
-  // spelled-out state we can't read) the city is the part before it.
-  const cityInLast =
-    tail.length > 0 && (out.state !== undefined || out.zip === undefined);
-  const cityIdx = cityInLast ? parts.length - 1 : parts.length - 2;
-  if (cityInLast) out.city = tail.join(' ');
-  else out.city = parts[cityIdx];
-  out.address = parts.slice(0, cityIdx).join(', ');
+  // 3. "[CITY] [STATE] [ZIP]" inside the last remaining part.
+  let city: string | undefined;
+  if (parts.length >= 2 && out.state === undefined) {
+    const before = { ...out };
+    const tail = consumeStateAndZip(last().split(/\s+/), out);
+    const foundState = out.state !== undefined;
+    const foundZip = out.zip !== undefined && before.zip === undefined;
+    if (tail.length === 0 && (foundState || foundZip)) {
+      parts.pop(); // the part was only "STATE [ZIP]" / "ZIP"
+    } else if (foundState) {
+      parts.pop();
+      city = tail.join(' '); // "Brooklyn NY 11201"
+    } else if (foundZip) {
+      parts.pop();
+      const words = tail.join(' ');
+      const named = parts.length >= 2 ? stateName(words) : undefined;
+      if (named) out.state = named; // "…, Brooklyn, New York 11201"
+      else city = words; // "…, Apt 4, Brooklyn 11201"
+    }
+  }
+
+  // 4. Otherwise the city is the last remaining part (when a street precedes it).
+  if (city === undefined && parts.length >= 2) city = parts.pop();
+  if (city !== undefined) out.city = city;
+  out.address = parts.join(', ');
   return out;
 }
 
@@ -85,7 +123,7 @@ export function parseAddress(freetext: string): ParsedAddress {
  */
 function consumeStateAndZip(parts: string[], out: ParsedAddress): string[] {
   const last = parts[parts.length - 1];
-  if (last && ZIP_RE.test(last)) {
+  if (last && out.zip === undefined && ZIP_RE.test(last)) {
     out.zip = last;
     parts = parts.slice(0, -1);
   }
