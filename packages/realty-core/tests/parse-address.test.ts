@@ -160,5 +160,28 @@ describe('parseAddress', () => {
   ])('parses %s', (input, expected) => {
     expect(parseAddress(input)).toEqual(expected);
   });
+
+  // auto-review #81 round 2: a city that spells a state name, after a unit
+  // line, must stay the city — a unit line is never the city.
+  it.each([
+    ['123 Main St, Apt 4, New York, 11201', { address: '123 Main St, Apt 4', city: 'New York', zip: '11201' }],
+    ['123 Main St, Apt 4, New York 11201', { address: '123 Main St, Apt 4', city: 'New York', zip: '11201' }],
+    ['123 Main St, Suite 200, Washington, 20001', { address: '123 Main St, Suite 200', city: 'Washington', zip: '20001' }],
+    ['123 Main St, #4, Washington 20001', { address: '123 Main St, #4', city: 'Washington', zip: '20001' }],
+    ['123 Main St, Unit 4, New York, NY, 10001', { address: '123 Main St, Unit 4', city: 'New York', state: 'NY', zip: '10001' }],
+    ['123 Main St, Apt 4, New York, New York, 10001', { address: '123 Main St, Apt 4', city: 'New York', state: 'NY', zip: '10001' }],
+    ['123 Main St, Ste. 5, Brooklyn, New York 11201', { address: '123 Main St, Ste. 5', city: 'Brooklyn', state: 'NY', zip: '11201' }],
+  ])('keeps the city for %s', (input, expected) => {
+    expect(parseAddress(input)).toEqual(expected);
+  });
+
+  it('never reports a unit line as the city', () => {
+    expect(parseAddress('123 Main St, Apt 4')).toEqual({ address: '123 Main St, Apt 4' });
+    expect(parseAddress('123 Main St, Suite 200, NY 11201')).toEqual({
+      address: '123 Main St, Suite 200',
+      state: 'NY',
+      zip: '11201',
+    });
+  });
 });
 

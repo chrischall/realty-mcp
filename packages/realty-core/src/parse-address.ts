@@ -50,6 +50,14 @@ const STATE_NAMES: Record<string, string> = {
   wisconsin: 'WI', wyoming: 'WY', 'puerto rico': 'PR',
 };
 
+/** A secondary-unit line ("Apt 4", "Suite 200", "#4", "Ste. 5") — never the city. */
+const UNIT_RE =
+  /^(?:#|(?:apt|apartment|unit|ste|suite|fl|floor|rm|room|bldg|building|lot|spc|space|trlr|dept|pmb)\b)/i;
+
+function isUnit(part: string | undefined): boolean {
+  return part !== undefined && UNIT_RE.test(part);
+}
+
 function stateName(words: string): string | undefined {
   return STATE_NAMES[words.toLowerCase().replace(/\s+/g, ' ')];
 }
@@ -84,7 +92,14 @@ export function parseAddress(freetext: string): ParsedAddress {
   //    the name as the city.
   if (parts.length >= 2 && STATE_RE.test(last())) {
     out.state = parts.pop()!.toUpperCase();
-  } else if (out.zip !== undefined && parts.length >= 3 && stateName(last())) {
+  } else if (
+    out.zip !== undefined &&
+    parts.length >= 3 &&
+    stateName(last()) &&
+    // "…, Apt 4, New York, 11201": a unit line can't be the city, so the
+    // state-named part IS the city (auto-review #81).
+    !isUnit(parts[parts.length - 2])
+  ) {
     out.state = stateName(parts.pop()!);
   }
 
@@ -103,14 +118,15 @@ export function parseAddress(freetext: string): ParsedAddress {
     } else if (foundZip) {
       parts.pop();
       const words = tail.join(' ');
-      const named = parts.length >= 2 ? stateName(words) : undefined;
+      const named =
+        parts.length >= 2 && !isUnit(last()) ? stateName(words) : undefined;
       if (named) out.state = named; // "…, Brooklyn, New York 11201"
       else city = words; // "…, Apt 4, Brooklyn 11201"
     }
   }
 
   // 4. Otherwise the city is the last remaining part (when a street precedes it).
-  if (city === undefined && parts.length >= 2) city = parts.pop();
+  if (city === undefined && parts.length >= 2 && !isUnit(last())) city = parts.pop();
   if (city !== undefined) out.city = city;
   out.address = parts.join(', ');
   return out;
