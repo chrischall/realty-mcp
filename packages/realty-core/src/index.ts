@@ -75,3 +75,67 @@ export type {
   RentVsBuyInputsUsed,
 } from './rent-vs-buy.js';
 // --- endregion:rent-vs-buy ---
+
+// --- MCP tool registrars (fleet-audit#1090) — consumer injects z + server ---
+export {
+  registerMortgageTool,
+  registerAffordabilityTool,
+  toLeanMortgage,
+  mortgageInputSchema,
+  affordabilityInputSchema,
+  MORTGAGE_TOOL_TITLE,
+  MORTGAGE_TOOL_DESCRIPTION,
+  AFFORDABILITY_TOOL_TITLE,
+  AFFORDABILITY_TOOL_DESCRIPTION,
+} from './mortgage-tools.js';
+export type {
+  MortgageToolShape,
+  CalculatorToolOptions,
+  MortgageToolOptions,
+  LeanMortgageResult,
+} from './mortgage-tools.js';
+export { jsonToolResult } from './tool-types.js';
+export type {
+  ZodLike,
+  ZodNumberLike,
+  ZodOptionalLike,
+  ToolServerLike,
+  ToolAnnotationsLike,
+  TextToolResult,
+  ToolResultLike,
+} from './tool-types.js';
+
+// --- per-row batch plumbing + compare pivot (fleet-audit#1091) ---
+export {
+  runRowBatch,
+  rowEnvelope,
+  errorRow,
+  pendingRow,
+  pendingRowMessage,
+  isRetryableRowKind,
+  throwIfAborted,
+  guardMethods,
+  RowAbandonedError,
+  DEFAULT_ROW_BATCH_DEADLINE_MS,
+  DEFAULT_ROW_BATCH_CONCURRENCY,
+  DEFAULT_RETRYABLE_ROW_KINDS,
+} from './row-batch.js';
+export type {
+  RowBatchKit,
+  RowErrorFields,
+  RowOutcome,
+  RowEnvelope,
+  RowEnvelopeCounts,
+  RunRowBatchOptions,
+} from './row-batch.js';
+export { pivotSummary } from './compare-summary.js';
+export type { SummaryField, SummaryRow } from './compare-summary.js';
+
+// --- view helpers + community vocabulary (fleet-audit#1175) ---
+export { makeViewHelpers, compactNote, REALTY_VIEWS } from './view.js';
+export type { ViewKit, ViewHelperOptions, ViewHelpers, MediaKeyMatcher } from './view.js';
+export { DEFAULT_COMMUNITIES } from './communities.js';
+
+// --- sold-price market stats (fleet-audit#1020 / #988) ---
+export { computeMarketStats, median, mean, numericColumn } from './market-stats.js';
+export type { MarketStats, MarketStatsFields } from './market-stats.js';

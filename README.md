@@ -18,7 +18,7 @@ implementation with shared tests.
 
 | Package | Status |
 |---|---|
-| `@chrischall/realty-core` | Address matching, suffix variants, locality alias map, free-text address parsing + alternates; mortgage / affordability / rent-vs-buy calculators; feature extraction; tax, HOA, days-on-market, price-drop, last-sold and lot-size derivations; event-type mapping; hyperlink-formula, URL and geo (ZIP↔state) helpers; shared `ResolverVia` / `ResolvedAddress` types. |
+| `@chrischall/realty-core` | Address matching, suffix variants, locality alias map, free-text address parsing + alternates; mortgage / affordability / rent-vs-buy calculators; feature extraction; tax, HOA, days-on-market, price-drop, last-sold and lot-size derivations; event-type mapping; hyperlink-formula, URL and geo (ZIP↔state) helpers; shared `ResolverVia` / `ResolvedAddress` types; sold-price market stats (`computeMarketStats`); the default Lake Lure community vocabulary; and cohort tool plumbing that takes the consumer's own zod / `McpServer` / mcp-utils as arguments (no runtime deps) — mortgage + affordability tool registrars, the bounded per-row batch envelope (`runRowBatch`), the compare pivot (`pivotSummary`) and `view` helpers (`makeViewHelpers`). |
 | `@chrischall/realty-meta` (planned) | Cross-source umbrella MCP. Depends on the portal packages below. Not yet scaffolded. See `CANDIDATE_LOGIC.md`. |
 
 ## Portal sources
