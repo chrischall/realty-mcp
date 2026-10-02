@@ -13,12 +13,21 @@
  *  - `"123 Main St, Brooklyn NY"`                 (no zip)
  *  - `"123 Main St, Brooklyn NY 11201-1234"`      (zip+4)
  *  - `"123 Main St"`                              (no comma)
+ *  - `"123 Main St, Apt 4, Brooklyn, NY 11201"`   (unit segment)
+ *  - `"123 Main St, Brooklyn, NY, 11201"`         (ZIP as its own part)
+ *  - `"123 Main St, Brooklyn, NY 11201, USA"`     (country trailer)
+ *
+ * With three or more parts, state / ZIP come from the LAST part and the
+ * city from the part before it (or from the last part's leading words, as
+ * in `"Brooklyn NY 11201"`). Any segments in between — unit / suite
+ * lines — are folded into `address` (fleet-audit#659).
  *
  * Returns an empty object for empty / whitespace-only input.
  */
 
 const ZIP_RE = /^\d{5}(?:-\d{4})?$/;
 const STATE_RE = /^[A-Za-z]{2}$/;
+const COUNTRY_RE = /^(?:USA?|U\.S\.A?\.?|United States(?: of America)?)$/i;
 
 export interface ParsedAddress {
   address?: string;
@@ -31,55 +40,61 @@ export function parseAddress(freetext: string): ParsedAddress {
   const text = (freetext ?? '').trim();
   if (!text) return {};
 
-  const commaParts = text.split(',').map((s) => s.trim()).filter(Boolean);
-  if (commaParts.length === 0) return {};
+  const parts = text.split(',').map((s) => s.trim()).filter(Boolean);
+  // A trailing country segment carries no locality.
+  if (parts.length > 1 && COUNTRY_RE.test(parts[parts.length - 1]!)) parts.pop();
+  // "…, NY, 11201": rejoin a bare trailing ZIP onto the state before it.
+  if (parts.length >= 3 && ZIP_RE.test(parts[parts.length - 1]!)) {
+    const zip = parts.pop()!;
+    parts[parts.length - 1] = `${parts[parts.length - 1]} ${zip}`;
+  }
+  if (parts.length === 0) return {};
 
   // No comma — everything is the street address.
-  if (commaParts.length === 1) {
-    return { address: commaParts[0] };
+  if (parts.length === 1) {
+    return { address: parts[0] };
   }
 
   const out: ParsedAddress = {};
-  out.address = commaParts[0];
+  const tail = consumeStateAndZip(parts[parts.length - 1]!.split(/\s+/), out);
 
-  // Two-comma form: middle = city, last = "STATE [ZIP]".
-  // One-comma form: last = "CITY STATE [ZIP]".
-  if (commaParts.length >= 3) {
-    out.city = commaParts[1];
-    const tail = commaParts[2]!.split(/\s+/);
-    consumeStateAndZip(tail, out);
-  } else {
-    const tail = commaParts[1]!.split(/\s+/);
-    consumeStateAndZip(tail, out, /* keepCity */ true);
+  // One-comma form: "ADDRESS, CITY STATE [ZIP]".
+  if (parts.length === 2) {
+    out.address = parts[0];
+    if (tail.length > 0) out.city = tail.join(' ');
+    return out;
   }
 
+  // Three or more parts. The last part's leftover words are the city when
+  // it is "CITY STATE [ZIP]", or the whole last part is the city when it
+  // carries no state / ZIP at all. Otherwise (a bare "STATE [ZIP]", or a
+  // spelled-out state we can't read) the city is the part before it.
+  const cityInLast =
+    tail.length > 0 && (out.state !== undefined || out.zip === undefined);
+  const cityIdx = cityInLast ? parts.length - 1 : parts.length - 2;
+  if (cityInLast) out.city = tail.join(' ');
+  else out.city = parts[cityIdx];
+  out.address = parts.slice(0, cityIdx).join(', ');
   return out;
 }
 
-function consumeStateAndZip(
-  parts: string[],
-  out: ParsedAddress,
-  keepCity = false
-): void {
-  if (parts.length === 0) return;
-
-  // Trailing zip?
+/**
+ * Strip a trailing ZIP and then a trailing two-letter state off `parts`,
+ * recording them on `out`. Returns the words left over (the city, when
+ * the segment was "CITY STATE ZIP").
+ */
+function consumeStateAndZip(parts: string[], out: ParsedAddress): string[] {
   const last = parts[parts.length - 1];
   if (last && ZIP_RE.test(last)) {
     out.zip = last;
     parts = parts.slice(0, -1);
   }
 
-  if (parts.length === 0) return;
-
-  // Trailing state?
   const stateCandidate = parts[parts.length - 1];
   if (stateCandidate && STATE_RE.test(stateCandidate)) {
     out.state = stateCandidate.toUpperCase();
     parts = parts.slice(0, -1);
   }
 
-  if (keepCity && parts.length > 0) {
-    out.city = parts.join(' ');
-  }
+  return parts;
 }
