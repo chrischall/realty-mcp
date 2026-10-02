@@ -137,9 +137,13 @@ Reconciled and shipped:
   path) to its `pathname + search`. The ~4-line body was byte-identical
   in `src/url.ts` across zillow / redfin / compass / homes (onehome uses
   a different id scheme and is excluded); hoisted as the canonical
-  version. Absolute URL → path (host discarded), leading-slash path →
-  unchanged, bare segment → leading-slash coerced, malformed → graceful
-  path coercion (never throws). Pure.
+  version. Absolute http(s) URL → path (host discarded), leading-slash
+  path → unchanged, bare segment → leading-slash coerced, malformed →
+  graceful path coercion. The result always starts with exactly one `/`
+  (leading slashes / backslashes collapse; tab / CR / LF are stripped), so
+  it can never be steered to another host (fleet-audit#666); a non-http(s)
+  absolute URL (`javascript:`, `x:@evil.com/…`) throws (fleet-audit#675).
+  Pure.
 - `locationToSlug` (cohort candidate **G**) — free-text location → URL
   slug (NFKD normalize, strip diacritics, lowercase, collapse runs of
   non-alphanumerics to a single `-`, trim leading/trailing `-`). Hoisted
@@ -147,19 +151,23 @@ Reconciled and shipped:
   NC"` → `"lake-lure-nc"`; a bare ZIP passes through unchanged. Pure.
 - `FIRST_DIGIT_TO_STATES` + `zipPlausibleStates` + `homesMatchZipState`
   + `extractZipFromLocation` (cohort candidate **H**) — light geographic
-  sanity-checks for ZIP-keyed searches. The `FIRST_DIGIT_TO_STATES`
-  table maps a ZIP's first digit → plausible US states;
-  `zipPlausibleStates(zip)` returns them (`null` for non-US/unparseable
-  input, ZIP+4 tolerated); `homesMatchZipState(zip, homeStates)` returns
+  sanity-checks for ZIP-keyed searches. `zipPlausibleStates(zip)` looks
+  the ZIP's 3-digit prefix up in the USPS prefix table (`ZIP3_RANGES`)
+  and widens it with each state's land neighbours, so border ZIPs and
+  border geocoding never false-alarm (`null` for non-US/unparseable input
+  or an unassigned prefix, ZIP+4 tolerated; fleet-audit#660). The
+  exported `FIRST_DIGIT_TO_STATES` is a coarse first-digit summary kept
+  for importers — it no longer drives the check;
+  `homesMatchZipState(zip, homeStates)` returns
   `false` ONLY when confident the returned listings are implausible for
   the queried ZIP — i.e. the in-state homes are not a MAJORITY of the
   usable set (catches the cross-continent search-fallback bug — ZIP 28746
   returning Seattle homes — even on partially-poisoned mixed sets),
   `true` otherwise (incl. when it can't make a determination);
-  `extractZipFromLocation(location)` pulls a
-  standalone 5-digit ZIP from free text. Hoisted from `redfin-mcp/src/
+  `extractZipFromLocation(location)` pulls the last standalone 5-digit
+  ZIP from free text, skipping a leading 5-digit street number. Hoisted from `redfin-mcp/src/
   geo.ts` — 1 consumer today but portable to all search-capable MCPs, so
-  shipped canonical now. Pure (static table + string ops).
+  shipped canonical now. Pure (static tables + string ops).
 - `estimateRentVsBuy` + `RentVsBuyInput` / `RentVsBuyResult` /
   `RentVsBuyYear` / `RentVsBuyInputsUsed` (candidate **I**) — the
   trickiest hoist: two MCPs implement the SAME financial model but with
@@ -498,8 +506,9 @@ collapse non-alnum to `-`). Hoisted verbatim alongside `urlToPath`.
 
 _Shipped — see the "Already in `realty-core` 0.2.x" list above._
 
-Present in `redfin-mcp/src/geo.ts:21-82` only today: a
-`FIRST_DIGIT_TO_STATES` table + plausibility check that catches
+Originally `redfin-mcp/src/geo.ts:21-82` only: a
+`FIRST_DIGIT_TO_STATES` table + plausibility check (since replaced by the
+USPS 3-digit prefix table + neighbour widening) that catches
 search-engine region-resolution bugs (ZIP 28746 returning Seattle
 homes). Portal-agnostic — shipped canonical now (1 consumer today)
 because it's portable to every search-capable cohort MCP.
