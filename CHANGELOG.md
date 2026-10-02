@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1](https://github.com/chrischall/realty-mcp/compare/v0.5.0...v0.5.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **realty-core:** bound calculator inputs and reject non-finite values ([#74](https://github.com/chrischall/realty-mcp/issues/74)) ([2dcd688](https://github.com/chrischall/realty-mcp/commit/2dcd688e1f375421b764c5ea0dbe090c12248c6d))
+* **realty-core:** do no I/O at import — drop top-level node:fs and console logging ([#75](https://github.com/chrischall/realty-mcp/issues/75)) ([c061e35](https://github.com/chrischall/realty-mcp/commit/c061e3515b400290f9fdfc7eae81ff3a686e8668))
+* **realty-core:** keep urlToPath paths pinned to the portal host ([#80](https://github.com/chrischall/realty-mcp/issues/80)) ([cdb45eb](https://github.com/chrischall/realty-mcp/commit/cdb45eb68518899a07f54834bede9feef2c946f4))
+* **realty-core:** parse unit-line addresses and stop junk street-name splits ([#77](https://github.com/chrischall/realty-mcp/issues/77)) ([6114e55](https://github.com/chrischall/realty-mcp/commit/6114e55d5c12b048130b2e3de142e004e9f648c9))
+* **realty-core:** stop false ZIP/state mismatches and misread listing events ([#79](https://github.com/chrischall/realty-mcp/issues/79)) ([db4cbc1](https://github.com/chrischall/realty-mcp/commit/db4cbc148fe6c715f8f8f3eaba721c5a6baec060))
+
+
+### Documentation
+
+* **realty-core:** describe the ZIP3 plausibility table and hardened urlToPath ([#83](https://github.com/chrischall/realty-mcp/issues/83)) ([db602d6](https://github.com/chrischall/realty-mcp/commit/db602d6a1a766c005ea5279704b6b56a890880e5))
+
 ## [0.5.0](https://github.com/chrischall/realty-mcp/compare/v0.4.8...v0.5.0) (2026-10-02)
 
 
