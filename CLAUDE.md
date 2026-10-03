@@ -61,17 +61,10 @@ release PR (linked-versions, `extra-files` propagation); merging it
 cuts one umbrella `v<x.y.z>` tag, which fires the publish job. Do not
 bump sub-package versions by hand — release-please owns lockstep.
 
-### PRs + auto-merge
+### CI
 
-Both `pr-auto-review.yml` and `auto-merge.yml` are thin stubs calling
-reusable workflows in `chrischall/workflows`. Auto-review emits a
-structured verdict and arms `ready-to-merge` on `pass` **or** `warn`;
-`auto-merge.yml` then arms `--auto --squash` on that label. `warn` and
-`fail` also open/update an `auto-review-followup` issue (see below);
-only `fail` blocks the merge. `ci.yml` is the last gate — for human PRs
-it runs only once `ready-to-merge` is armed (bot PRs run CI on every
-event). Release PRs ship via the `release-ready` label, not
-`ready-to-merge`.
+`ci.yml` is the last gate. For human PRs it runs only once the
+auto-review pipeline has armed the PR; bot PRs run CI on every event.
 
 ## Hoisting policy
 
@@ -98,8 +91,6 @@ deduplication of records returned by multiple portals.
   against the built dist.
 - Don't bake portal-specific magic strings into `realty-core`. If
   Zillow has a quirk about slug format, that lives in zillow-mcp.
-- Don't manually bump versions or arm `ready-to-merge` to bypass
-  review. Let the auto-review verdict gate.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes
