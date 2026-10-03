@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.1](https://github.com/chrischall/realty-mcp/compare/v0.6.0...v0.6.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** bump @chrischall/mcp-utils to 2.13.0 ([#88](https://github.com/chrischall/realty-mcp/issues/88)) ([922956e](https://github.com/chrischall/realty-mcp/commit/922956e15502302cb0e9c42d8ca5309f8953d333))
+
+
+### Documentation
+
+* drop restated auto-merge policy now covered by the fleet-policy pointer ([#86](https://github.com/chrischall/realty-mcp/issues/86)) ([8236c42](https://github.com/chrischall/realty-mcp/commit/8236c429bab0837b9c09ad3de65119a4cff8f1c7))
+
 ## [0.6.0](https://github.com/chrischall/realty-mcp/compare/v0.5.1...v0.6.0) (2026-10-02)
 
 
