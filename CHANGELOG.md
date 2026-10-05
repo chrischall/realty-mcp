@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/chrischall/realty-mcp/compare/v0.6.1...v0.6.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** require @chrischall/mcp-utils 2.14.0 ([#89](https://github.com/chrischall/realty-mcp/issues/89)) ([221f0ae](https://github.com/chrischall/realty-mcp/commit/221f0ae02595e0ea565c2dfbdb75ac14936b3a1d))
+
 ## [0.6.1](https://github.com/chrischall/realty-mcp/compare/v0.6.0...v0.6.1) (2026-10-03)
 
 
