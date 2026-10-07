@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/chrischall/realty-mcp/compare/v0.6.2...v0.6.3) (2026-10-07)
+
+
+### Bug Fixes
+
+* **deps:** support MCP_CONFIRM_ELICITATION=off and harden fetchproxy room frames ([#95](https://github.com/chrischall/realty-mcp/issues/95)) ([0d928ee](https://github.com/chrischall/realty-mcp/commit/0d928ee98d8ffd60bf3d3fbeea0b280a7716dbe4))
+
 ## [0.6.2](https://github.com/chrischall/realty-mcp/compare/v0.6.1...v0.6.2) (2026-10-05)
 
 
