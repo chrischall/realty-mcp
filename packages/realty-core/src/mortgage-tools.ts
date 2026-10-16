@@ -63,6 +63,24 @@ export interface CalculatorToolOptions {
    * mcp-utils' `minifiedResult`).
    */
   toResult?: (data: unknown) => ToolResultLike;
+  /**
+   * Maps a domain-validation error the calculator throws (e.g.
+   * `down_payment` above `home_price`, a non-finite input) before it is
+   * rethrown — pass `(e) => new McpToolError((e as Error).message)` to put
+   * it on mcp-utils' error-formatting path like every other tool
+   * (fleet-audit#1393). realty-core cannot import McpToolError itself
+   * (no-deps invariant). Defaults to rethrowing the original error.
+   */
+  toError?: (err: unknown) => unknown;
+}
+
+/** Run `fn`, routing anything it throws through the consumer's `toError`. */
+function mapErrors<T>(toError: CalculatorToolOptions['toError'], fn: () => T): T {
+  try {
+    return fn();
+  } catch (err) {
+    throw toError ? toError(err) : err;
+  }
 }
 
 export interface MortgageToolOptions extends CalculatorToolOptions {
@@ -210,7 +228,7 @@ export function registerMortgageTool(server: ToolServerLike, opts: MortgageToolO
       inputSchema: mortgageInputSchema(opts.z),
     },
     (input: MortgageInput) => {
-      const breakdown = calculateMortgage(input);
+      const breakdown = mapErrors(opts.toError, () => calculateMortgage(input));
       return toResult(lean ? toLeanMortgage(breakdown) : breakdown);
     }
   );
@@ -235,6 +253,7 @@ export function registerAffordabilityTool(
       annotations: { title, ...READ_ONLY_LOCAL },
       inputSchema: affordabilityInputSchema(opts.z),
     },
-    (input: AffordabilityInput) => toResult(calculateAffordability(input))
+    (input: AffordabilityInput) =>
+      toResult(mapErrors(opts.toError, () => calculateAffordability(input)))
   );
 }
