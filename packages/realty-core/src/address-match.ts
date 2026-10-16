@@ -51,7 +51,16 @@
  *     side, so different route numbers reject.
  *  4. Reject conflicting directionals and street names with words
  *     the other side lacks, in both directions (fleet-audit#215).
- *  5. Score = |query ∩ candidate| / |query| over the kept tokens.
+ *  5. Score = |query ∩ candidate| / |query| over the kept tokens —
+ *     over the query's STREET segment (text before the first comma)
+ *     when the candidate is the street line only, i.e. carries no token
+ *     beyond that segment's words, a street type or a directional.
+ *     Portals return the street line, so a query that also names the
+ *     city / state / ZIP ("123 Main St, Charlotte, NC 28202"; "Storgatan
+ *     12, 111 22 Stockholm") must not be diluted to 50% by locality the
+ *     candidate never had (fleet-audit#1318). A candidate that carries a
+ *     locality of its own is still scored against the whole query, so a
+ *     different city or ZIP still lowers the score.
  *  6. Threshold > 0.5 (strict majority) — homes #50.
  */
 
@@ -80,6 +89,27 @@ const ROUTE_WORDS: ReadonlySet<string> = new Set([
   'road', 'rd', 'highway', 'hwy', 'route', 'rte', 'fm', 'cr', 'sr', 'us',
   'sh', 'interstate',
 ]);
+
+/**
+ * "Road" / "Rd" is also the most common street TYPE, so a number after it
+ * is a route number only when the road word starts the street name ("100
+ * Road 12") or follows one of these qualifiers ("County Road 12", "State
+ * Rd 7"). Otherwise "123 Mill Rd 5" is a bare trailing unit and must not
+ * hard-reject the street-only "123 Mill Rd" (fleet-audit#1319).
+ */
+const ROAD_WORDS: ReadonlySet<string> = new Set(['road', 'rd']);
+const ROAD_QUALIFIERS: ReadonlySet<string> = new Set([
+  'county', 'co', 'state', 'township', 'twp', 'forest', 'parish',
+]);
+
+/** Is `raw[i]` (a number) a route number after the route word `raw[i - 1]`? */
+function isRouteNumberAt(raw: readonly string[], i: number): boolean {
+  const word = raw[i - 1];
+  if (word === undefined || !ROUTE_WORDS.has(word) || !ROUTE_NUMBER.test(raw[i]!)) return false;
+  if (!ROAD_WORDS.has(word)) return true;
+  const before = raw[i - 2];
+  return before === undefined || HOUSE_NUMBER.test(before) || ROAD_QUALIFIERS.has(before);
+}
 
 /**
  * A route number: at most four digits (optionally one letter), so a
@@ -125,6 +155,10 @@ interface Analyzed {
   routeNumbers: Set<string>;
   /** Every kept token before the short-token filter. */
   allTokens: Set<string>;
+  /** The scored tokens that come from the street segment (before the first comma). */
+  streetTokens: string[];
+  /** Every kept street-segment token before the short-token filter. */
+  streetAllTokens: Set<string>;
 }
 
 /**
@@ -154,7 +188,15 @@ function analyze(input: string): Analyzed {
   const units = new Set<string>();
   const routeNumbers = new Set<string>();
   if (!input) {
-    return { tokens: [], houseNumber: null, units, routeNumbers, allTokens: new Set() };
+    return {
+      tokens: [],
+      houseNumber: null,
+      units,
+      routeNumbers,
+      allTokens: new Set(),
+      streetTokens: [],
+      streetAllTokens: new Set(),
+    };
   }
   // A bare "#101" names a unit just like "Apt 101", so rewrite the "#"
   // into a designator before punctuation is stripped.
@@ -163,6 +205,8 @@ function analyze(input: string): Analyzed {
   const raw = segments.flatMap(segmentTokens);
 
   const kept: string[] = [];
+  // Parallel to `kept`: did the token come from the street segment?
+  const inStreet: boolean[] = [];
   for (let i = 0; i < raw.length; i++) {
     const t = raw[i]!;
     const next = raw[i + 1];
@@ -186,19 +230,16 @@ function analyze(input: string): Analyzed {
       kept.findIndex((k) => HOUSE_NUMBER.test(k)) !== kept.length - 1
     ) {
       kept.pop();
+      inStreet.pop();
       continue;
     }
     // A number right after a route word in the street segment is part
     // of the street name ("County Road 12", "Highway 50").
-    if (
-      i < streetSegmentLength &&
-      i > 0 &&
-      ROUTE_WORDS.has(raw[i - 1]!) &&
-      ROUTE_NUMBER.test(t)
-    ) {
+    if (i < streetSegmentLength && i > 0 && isRouteNumberAt(raw, i)) {
       routeNumbers.add(t);
     }
     kept.push(t);
+    inStreet.push(i < streetSegmentLength);
   }
 
   // The house number is the first digit-leading token of the street
@@ -207,10 +248,19 @@ function analyze(input: string): Analyzed {
   // always survive the short-token filter so the anchor has something
   // to work with.
   const houseNumber = kept.find((t) => HOUSE_NUMBER.test(t)) ?? null;
-  const tokens = kept.filter(
-    (t) => t.length >= 3 || t === houseNumber || routeNumbers.has(t)
-  );
-  return { tokens, houseNumber, units, routeNumbers, allTokens: new Set(kept) };
+  const scored = (t: string): boolean =>
+    t.length >= 3 || t === houseNumber || routeNumbers.has(t);
+  const tokens = kept.filter(scored);
+  const streetKept = kept.filter((_, j) => inStreet[j]);
+  return {
+    tokens,
+    houseNumber,
+    units,
+    routeNumbers,
+    allTokens: new Set(kept),
+    streetTokens: streetKept.filter(scored),
+    streetAllTokens: new Set(streetKept),
+  };
 }
 
 /**
@@ -420,9 +470,26 @@ export function addressMatch(
     return { matched: false, score: 0 };
   }
 
+  // A candidate that is the street line only (every token is one of the
+  // query's street-segment words, a street type or a directional) is
+  // scored against the query's street segment, so locality it never had
+  // cannot dilute the score (fleet-audit#1318).
+  const queryStreet = new Set([...a.streetAllTokens].map(canonName));
+  const streetOnly =
+    a.streetTokens.length > 0 &&
+    a.streetTokens.length < inputTokens.length &&
+    c.tokens.every(
+      (t) =>
+        STREET_TYPES.has(t) ||
+        DIRECTIONALS.has(t) ||
+        a.streetAllTokens.has(t) ||
+        queryStreet.has(canonName(t))
+    );
+  const scoredTokens = streetOnly ? a.streetTokens : inputTokens;
+
   let hits = 0;
-  for (const t of inputTokens) if (candTokens.has(t)) hits++;
-  const score = hits / inputTokens.length;
+  for (const t of scoredTokens) if (candTokens.has(t)) hits++;
+  const score = hits / scoredTokens.length;
 
   // Strict majority — exact 50% does NOT pass. homes #50.
   return { matched: score > 0.5, score };

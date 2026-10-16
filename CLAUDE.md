@@ -61,6 +61,25 @@ release PR (linked-versions, `extra-files` propagation); merging it
 cuts one umbrella `v<x.y.z>` tag, which fires the publish job. Do not
 bump sub-package versions by hand — release-please owns lockstep.
 
+**Root dependency bumps never ship.** `@chrischall/realty-core` has no
+runtime dependencies — everything in the root `package.json`
+(mcp-utils, fetchproxy, the SDK, zod) is a devDependency used only by
+the tests. A bump there changes nothing in the published tarball, so
+title it `chore(deps-dev): …`, never `fix(deps)` / `feat(deps)`, even
+for a first-party package: 0.6.1, 0.6.2 and 0.6.3 were byte-identical
+no-op releases cut that way, each fanning out as a pointless
+dependabot PR to every consumer (fleet-audit#1320). Use `fix(deps)` only
+when `packages/realty-core/package.json` gains a real runtime
+dependency.
+
+Why not a release-please path filter instead: release-please's
+`exclude-paths` only matches directories, so it cannot drop the root
+`package.json` / lockfile, and moving the package to a
+`packages/realty-core` component would stop release-please-action
+emitting the root `release_created` / `tag_name` outputs the shared
+reusable workflow keys publishing on — it would silently stop npm
+publishes.
+
 ### CI
 
 `ci.yml` is the last gate. For human PRs it runs only once the

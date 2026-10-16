@@ -479,6 +479,66 @@ describe('addressMatch', () => {
     });
   });
 
+  describe('a full-address query against a street-only candidate (fleet-audit#1318)', () => {
+    it('scores the street segment when the candidate is the street line only', () => {
+      expect(addressMatch('123 Main St, Charlotte, NC 28202', '123 Main St')).toEqual({
+        matched: true,
+        score: 1,
+      });
+      expect(
+        addressMatch('126 Sleeping Bear Ln, Lake Lure, NC 28746', '126 Sleeping Bear Ln').matched
+      ).toBe(true);
+      expect(addressMatch('123 Main St, Charlotte, NC 28202', '123 Main Street').matched).toBe(
+        true
+      );
+      expect(addressMatch('123 N Main St, Apt 4, Charlotte, NC', '123 N Main St').matched).toBe(
+        true
+      );
+    });
+
+    it('matches a Swedish address that carries a postal code', () => {
+      expect(addressMatch('Storgatan 12, 111 22 Stockholm', 'Storgatan 12')).toEqual({
+        matched: true,
+        score: 1,
+      });
+      expect(addressMatch('Kungsgatan 3A, 411 19 Göteborg', 'Kungsgatan 3A').matched).toBe(true);
+    });
+
+    it('still rejects the wrong house, street or unit', () => {
+      expect(addressMatch('123 Main St, Charlotte, NC 28202', '124 Main St').matched).toBe(false);
+      expect(addressMatch('123 Main St, Charlotte, NC 28202', '123 Oak St').matched).toBe(false);
+      expect(addressMatch('123 N Main St, Charlotte, NC', '123 S Main St').matched).toBe(false);
+      expect(addressMatch('Storgatan 12, 111 22 Stockholm', 'Storgatan 14').matched).toBe(false);
+      expect(addressMatch('Kungsgatan 3A, 411 19 Göteborg', 'Kungsgatan 3').matched).toBe(false);
+      expect(
+        addressMatch('123 Main St Apt 5, Charlotte, NC 28202', '123 Main St Apt 6').matched
+      ).toBe(false);
+    });
+
+    it('still scores the locality when the candidate carries a different one', () => {
+      expect(
+        addressMatch('123 Main St, Charlotte, NC 28202', '123 Main St, Raleigh, NC 27601').matched
+      ).toBe(false);
+      expect(
+        addressMatch('123 Main St, Charlotte, NC 28202', '123 Main St Raleigh NC 27601').matched
+      ).toBe(false);
+    });
+  });
+
+  describe('a bare number after an ordinary Rd / Road (fleet-audit#1319)', () => {
+    it('is not a route number, so a unit-less candidate still matches', () => {
+      expect(addressMatch('123 Mill Rd 5', '123 Mill Rd').matched).toBe(true);
+      expect(addressMatch('123 Old Mill Road 12', '123 Old Mill Road').matched).toBe(true);
+    });
+
+    it('still treats County / State Road numbers and a leading Road as route numbers', () => {
+      expect(addressMatch('123 County Road 12', '123 County Road').matched).toBe(false);
+      expect(addressMatch('123 County Rd 12', '123 County Rd 21').matched).toBe(false);
+      expect(addressMatch('123 State Road 7', '123 State Road 9').matched).toBe(false);
+      expect(addressMatch('123 Road 12', '123 Road 21').matched).toBe(false);
+    });
+  });
+
   it('handles empty input as no match', () => {
     const r = addressMatch('', '126 Sleeping Bear Lane');
     expect(r.matched).toBe(false);

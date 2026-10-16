@@ -189,3 +189,65 @@ describe('registerAffordabilityTool', () => {
     expect(res.isError).toBeFalsy();
   });
 });
+
+describe('toError (fleet-audit#1393)', () => {
+  class DomainError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'DomainError';
+    }
+  }
+  const seen: unknown[] = [];
+  const toError = (e: unknown): Error => {
+    seen.push(e);
+    return new DomainError(`mapped: ${(e as Error).message}`);
+  };
+
+  it('maps a mortgage domain-validation error through the consumer toError', async () => {
+    seen.length = 0;
+    h = await createTestHarness((server) =>
+      registerMortgageTool(server, { z, prefix: 'zillow', toError })
+    );
+    const res = await h.callTool('zillow_calculate_mortgage', {
+      ...base,
+      down_payment: 500_000,
+    });
+    expect(res.isError).toBe(true);
+    expect(seen).toHaveLength(1);
+    expect((seen[0] as Error).message).toBe('down_payment must not exceed home_price');
+    expect(JSON.stringify(res.content)).toContain('mapped: down_payment must not exceed home_price');
+  });
+
+  it('maps an affordability domain-validation error through the consumer toError', () => {
+    // NaN cannot cross the JSON-RPC boundary, so drive the handler directly.
+    seen.length = 0;
+    let handler: ((args: unknown) => unknown) | undefined;
+    registerAffordabilityTool(
+      { registerTool: (_n, _c, h) => void (handler = h) },
+      { z, prefix: 'homes', toError }
+    );
+    expect(() =>
+      handler!({ monthly_income: Number.NaN, down_payment: 0, interest_rate: 6 })
+    ).toThrow(DomainError);
+    expect(seen).toHaveLength(1);
+  });
+
+  it('does not call toError on success', async () => {
+    seen.length = 0;
+    h = await createTestHarness((server) =>
+      registerMortgageTool(server, { z, prefix: 'zillow', toError })
+    );
+    const res = await h.callTool('zillow_calculate_mortgage', base);
+    expect(res.isError).toBeFalsy();
+    expect(seen).toHaveLength(0);
+  });
+
+  it('rethrows the original error when no toError is given', async () => {
+    h = await createTestHarness((server) =>
+      registerMortgageTool(server, { z, prefix: 'zillow' })
+    );
+    const res = await h.callTool('zillow_calculate_mortgage', { ...base, down_payment: 500_000 });
+    expect(res.isError).toBe(true);
+    expect(JSON.stringify(res.content)).toContain('down_payment must not exceed home_price');
+  });
+});
