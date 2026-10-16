@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/chrischall/realty-mcp/compare/v0.6.3...v0.6.4) (2026-10-16)
+
+
+### Bug Fixes
+
+* **address-match:** match full-address queries against street-only listing lines ([#100](https://github.com/chrischall/realty-mcp/issues/100)) ([ecc0280](https://github.com/chrischall/realty-mcp/commit/ecc0280b2b9943a5a05d4b0f5507691635f467c9))
+
 ## [0.6.3](https://github.com/chrischall/realty-mcp/compare/v0.6.2...v0.6.3) (2026-10-07)
 
 
