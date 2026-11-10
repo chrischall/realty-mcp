@@ -15,8 +15,8 @@
     "release:core": "npm publish --workspace=@chrischall/realty-core"
   },
   "devDependencies": {
-    "@chrischall/mcp-utils": "^3.4.0",
-    "@fetchproxy/server": "^3.6.3",
+    "@chrischall/mcp-utils": "^3.7.2",
+    "@fetchproxy/server": "^3.7.0",
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "@types/node": "^26.6.6",
